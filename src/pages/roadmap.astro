@@ -9,9 +9,8 @@ const steps = [
     title: 'アプリをダウンロード・登録',
     time: '5分',
     color: 'blue',
-    description: 'Uber Eats配達パートナーアプリをインストールして、招待コードを使って登録します。招待コードを使うと初回ボーナスが増えるのでお得です。',
+    description: 'Uber Eats配達パートナーアプリをインストールして登録します。',
     tips: [
-      '招待コードはこのページ下部からどうぞ',
       'メールアドレスと電話番号が必要です',
       'Uber本体アプリとは別のアプリです',
     ],
@@ -195,24 +194,6 @@ const colorMap: Record<string, { bg: string; border: string; num: string; badge:
           );
         })}
       </div>
-    </div>
-
-    <!-- 招待コードCTA -->
-    <div class="mt-10 bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-2xl p-6 text-center">
-      <div class="text-3xl mb-3">🎁</div>
-      <h3 class="font-bold text-green-900 text-lg mb-2">招待コードで登録してボーナスをもらおう</h3>
-      <p class="text-sm text-green-700 mb-4">
-        通常の登録より初回ボーナスが増えます。<br class="sm:hidden" />
-        登録前に必ず招待コードを入力してください。
-      </p>
-      <AffiliateBox
-        name="Uber Eats 配達員登録（招待コード特典あり）"
-        description="招待コードから登録すると初回ボーナスが通常より増えます。名古屋エリアはいま需要が多く稼ぎやすい状況です。"
-        price="登録無料"
-        url="https://example.com/uber-invite"
-        badge="招待ボーナスあり"
-        rating={4.9}
-      />
     </div>
 
     <!-- 関連記事 -->

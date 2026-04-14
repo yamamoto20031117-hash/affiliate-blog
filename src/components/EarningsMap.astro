@@ -379,6 +379,11 @@
   let resettingToPref = false; // 都道府県モードへの復帰中フラグ（自動ドリル防止）
   const cityCache = new Map<string, any>();
 
+  // ポップアップ追従用: SVG空間での座標を保持
+  let popupSvgX: number | null = null;
+  let popupSvgY: number | null = null;
+  let popupVisible = false;
+
   // ===== 市区町村TopoJSON読み込み =====
   async function loadCityTopo(prefCode: string): Promise<any> {
     if (cityCache.has(prefCode)) return cityCache.get(prefCode);
@@ -515,6 +520,11 @@
         g.select('.city-labels').selectAll('text')
           .attr('opacity', cityOpacity)
           .attr('font-size', `${10 / k}px`);
+
+        // ポップアップをSVG座標に追従させる
+        if (popupVisible && popupSvgX !== null && popupSvgY !== null) {
+          updatePopupPosition(event.transform);
+        }
 
         // ズーム時の自動ドリルダウン（k>=6で中央の都道府県を展開）
         // resettingToPref中はトランジションでk>=6を通過しても無視
@@ -820,6 +830,39 @@
     (btnC as HTMLButtonElement).disabled = true;
   }
 
+  // ===== ポップアップ位置更新（SVG座標→画面座標変換＋境界クランプ）=====
+  function updatePopupPosition(transform?: any) {
+    if (!popupVisible || popupSvgX === null || popupSvgY === null) return;
+    const popup = document.getElementById('map-popup')!;
+    const wrap  = document.getElementById('map-wrap')!;
+    const W = wrap.offsetWidth, H = wrap.offsetHeight;
+
+    // 現在のズーム変換を取得
+    const t = transform || (d3 && svg ? d3.zoomTransform(svg.node()) : {x:0, y:0, k:1});
+    // SVG空間の座標を画面座標に変換
+    const screenX = t.x + popupSvgX * t.k;
+    const screenY = t.y + popupSvgY * t.k;
+
+    // ポップアップのサイズを考慮してクランプ
+    const pw = popup.offsetWidth || 190;
+    const ph = popup.offsetHeight || 150;
+    const margin = 8;
+
+    // クランプ: ポップアップが map-wrap の外に出ないように
+    let clampedX = Math.max(pw / 2 + margin, Math.min(W - pw / 2 - margin, screenX));
+    let clampedY = Math.max(ph + margin + 12, Math.min(H - margin, screenY));
+
+    // もしSVG座標がmap-wrap外に完全に出たら非表示にする
+    if (screenX < -pw || screenX > W + pw || screenY < -ph || screenY > H + ph) {
+      popup.classList.add('hidden');
+      popupVisible = false;
+      return;
+    }
+
+    popup.style.left = `${clampedX}px`;
+    popup.style.top  = `${clampedY}px`;
+  }
+
   // ===== ポップアップ =====
   function showPopup(
     event: MouseEvent, name: string, pref: string,
@@ -827,9 +870,17 @@
     avgBase?: number, avgPromo?: number
   ) {
     const popup = document.getElementById('map-popup')!;
-    const rect  = document.getElementById('map-wrap')!.getBoundingClientRect();
-    popup.style.left = `${event.clientX - rect.left}px`;
-    popup.style.top  = `${event.clientY - rect.top}px`;
+    const wrap  = document.getElementById('map-wrap')!;
+    const rect  = wrap.getBoundingClientRect();
+
+    // クリック位置からSVG空間の座標を逆算して保存
+    const t = d3.zoomTransform(svg.node());
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    popupSvgX = (clickX - t.x) / t.k;
+    popupSvgY = (clickY - t.y) / t.k;
+    popupVisible = true;
+
     document.getElementById('pp-city')!.textContent = name || '（名称不明）';
     document.getElementById('pp-pref')!.textContent = pref || '';
     const rEl = document.getElementById('pp-rate')!;
@@ -860,10 +911,16 @@
       bdEl.classList.add('hidden');
     }
     popup.classList.remove('hidden');
+    // 初回表示時も境界クランプを適用
+    updatePopupPosition(t);
     event.stopPropagation();
   }
-  document.getElementById('map-wrap')?.addEventListener('click', () =>
-    document.getElementById('map-popup')?.classList.add('hidden'));
+  document.getElementById('map-wrap')?.addEventListener('click', () => {
+    document.getElementById('map-popup')?.classList.add('hidden');
+    popupVisible = false;
+    popupSvgX = null;
+    popupSvgY = null;
+  });
 
   // ===== マップ色を再描画 =====
   function refreshMapColors() {

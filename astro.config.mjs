@@ -7,4 +7,12 @@ export default defineConfig({
     mdx(),
   ],
   site: 'https://your-blog.com',
+  vite: {
+    server: {
+      watch: {
+        usePolling: true,
+        interval: 1000,
+      },
+    },
+  },
 });
