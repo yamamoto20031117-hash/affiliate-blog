@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a5f"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="card1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="card2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e5e7eb"/>
+      <stop offset="100%" style="stop-color:#f9fafb"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="400" fill="url(#bg1)"/>
+  <!-- 装飾円 -->
+  <circle cx="650" cy="80" r="120" fill="rgba(255,255,255,0.05)"/>
+  <circle cx="100" cy="350" r="80" fill="rgba(255,255,255,0.05)"/>
+  <circle cx="700" cy="320" r="60" fill="rgba(255,255,255,0.05)"/>
+  <!-- クレジットカード（メイン） -->
+  <g transform="translate(420, 100) rotate(-8)">
+    <rect x="0" y="0" width="280" height="175" rx="16" fill="url(#card1)" opacity="0.95"/>
+    <rect x="0" y="40" width="280" height="35" fill="rgba(0,0,0,0.15)"/>
+    <rect x="20" y="95" width="50" height="35" rx="5" fill="rgba(255,255,255,0.4)"/>
+    <circle cx="230" cy="145" r="20" fill="rgba(255,255,255,0.3)"/>
+    <circle cx="255" cy="145" r="20" fill="rgba(255,255,255,0.2)"/>
+    <text x="20" y="145" font-family="Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.6)" letter-spacing="3">•••• •••• •••• 1234</text>
+  </g>
+  <!-- クレジットカード（サブ） -->
+  <g transform="translate(460, 140) rotate(5)">
+    <rect x="0" y="0" width="260" height="165" rx="14" fill="url(#card2)" opacity="0.7"/>
+    <rect x="0" y="38" width="260" height="30" fill="rgba(0,0,0,0.08)"/>
+    <rect x="18" y="85" width="45" height="30" rx="4" fill="rgba(0,0,0,0.08)"/>
+  </g>
+  <!-- ポイントアイコン -->
+  <g transform="translate(580, 70)">
+    <circle cx="0" cy="0" r="28" fill="#10b981"/>
+    <text x="0" y="6" font-family="Arial, sans-serif" font-size="18" fill="white" text-anchor="middle" font-weight="bold">P</text>
+  </g>
+  <!-- テキスト -->
+  <text x="60" y="150" font-family="'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="38" fill="white" font-weight="900">現金受け取り</text>
+  <text x="60" y="200" font-family="'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="38" fill="white" font-weight="900">× クレカ</text>
+  <text x="60" y="260" font-family="'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="22" fill="rgba(255,255,255,0.7)">ポイントが勝手に貯まる裏技</text>
+  <!-- 矢印 -->
+  <g transform="translate(60, 290)">
+    <rect x="0" y="0" width="160" height="36" rx="18" fill="#f59e0b"/>
+    <text x="80" y="24" font-family="'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="14" fill="#78350f" text-anchor="middle" font-weight="bold">三井住友カード NL</text>
+  </g>
+</svg>
