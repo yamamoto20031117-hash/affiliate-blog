@@ -1,0 +1,195 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="このブログについて・筆者プロフィール"
+  description="名古屋の大学生が原付Uber Eatsで時給2,000円を稼ぐ方法、クレカ修行ハック、扶養・税金の注意点をリアルな体験談とともに発信しています。"
+>
+
+  <!-- ヒーロー -->
+  <section class="bg-gradient-to-br from-primary-600 to-primary-800 text-white py-12 px-4">
+    <div class="max-w-2xl mx-auto text-center">
+      <div class="w-24 h-24 rounded-full bg-white/20 border-4 border-white/50 mx-auto mb-4 flex items-center justify-center text-5xl">
+        🛵
+      </div>
+      <h1 class="text-2xl font-bold mb-1">ひろ</h1>
+      <p class="text-primary-200 text-sm mb-1">「人生のライフハック」管理人</p>
+      <p class="text-primary-300 text-xs mb-4">名古屋大学大学院 理学研究科 / 原付Uber配達員 / クレカ修行中</p>
+      <div class="flex justify-center gap-2 flex-wrap">
+        <span class="bg-white/20 text-xs px-3 py-1 rounded-full">🎓 名大院・理学研究科</span>
+        <span class="bg-white/20 text-xs px-3 py-1 rounded-full">🛵 原付稼働</span>
+        <span class="bg-white/20 text-xs px-3 py-1 rounded-full">💰 平均時給 ¥2,000</span>
+        <span class="bg-white/20 text-xs px-3 py-1 rounded-full">💳 クレカ修行中</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="max-w-2xl mx-auto px-4 py-10 space-y-10">
+
+    <!-- 自己紹介 -->
+    <section>
+      <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-1 h-6 bg-primary-500 rounded-full"></span>
+        自己紹介
+      </h2>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4 text-gray-700 leading-relaxed text-sm">
+        <p>
+          はじめまして、<strong>ひろ</strong>です。名古屋大学大学院 理学研究科に在籍しながら、原付（スクーター）でUber Eatsの配達をしています。
+        </p>
+        <p>
+          院生になってから「自由な時間に稼げる仕事がしたい」と思ってUber Eatsを始めました。最初は自転車でやっていましたが、名古屋の移動距離の長さに限界を感じて原付に切り替えたら、<strong>時給が一気に上がって平均¥2,000/時間</strong>を達成できるようになりました。
+        </p>
+        <p>
+          さらに「どうせ稼ぐなら賢く使いたい」と思ってクレジットカードを研究するうちに、<strong>現金払い設定×クレカの「100万修行」を同時に達成できるハック</strong>を発見。今は三井住友ゴールドNLの年会費永年無料を目指して修行中です。
+        </p>
+        <p>
+          同じ大学生や社会人の方にこの情報を広めたくてブログ「<strong>人生のライフハック</strong>」を始めました。今後はUber Eatsだけでなく、節約術・お得なサービス・投資の入門など、生活をちょっとだけ豊かにするライフハック情報を幅広く発信していきます。
+        </p>
+      </div>
+    </section>
+
+    <!-- スペックカード -->
+    <section>
+      <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-1 h-6 bg-green-500 rounded-full"></span>
+        配達スペック
+      </h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div class="text-2xl mb-1">🛵</div>
+          <div class="text-xs text-gray-500 mb-0.5">使用車両</div>
+          <div class="text-sm font-semibold text-gray-800">原付（スクーター）</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div class="text-2xl mb-1">📍</div>
+          <div class="text-xs text-gray-500 mb-0.5">稼働エリア</div>
+          <div class="text-sm font-semibold text-gray-800">名古屋市中区・中村区中心</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div class="text-2xl mb-1">💰</div>
+          <div class="text-xs text-gray-500 mb-0.5">平均時給</div>
+          <div class="text-sm font-semibold text-gray-800">約 ¥2,000/時間</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div class="text-2xl mb-1">📅</div>
+          <div class="text-xs text-gray-500 mb-0.5">稼働頻度</div>
+          <div class="text-sm font-semibold text-gray-800">週3〜4日</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div class="text-2xl mb-1">📦</div>
+          <div class="text-xs text-gray-500 mb-0.5">累計配達数</div>
+          <div class="text-sm font-semibold text-gray-800">1,000件以上</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div class="text-2xl mb-1">⭐</div>
+          <div class="text-xs text-gray-500 mb-0.5">評価</div>
+          <div class="text-sm font-semibold text-gray-800">4.9〜5.0をキープ</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- このブログで書いていること -->
+    <section>
+      <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-1 h-6 bg-blue-500 rounded-full"></span>
+        このブログで書いていること
+      </h2>
+      <div class="space-y-3">
+        <a href="/category/uber"
+           class="flex gap-4 p-4 rounded-xl border-l-4 border-green-400 bg-green-50 hover:shadow-sm transition-shadow no-underline">
+          <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-xl flex-shrink-0">🚗</div>
+          <div>
+            <div class="font-semibold text-gray-900 text-sm">Uber Eatsの稼ぎ方</div>
+            <div class="text-xs text-gray-600 mt-0.5 leading-relaxed">名古屋エリアの稼げる場所・時間帯・天気別の攻略法。原付と自転車の違い、インセンティブの取り方など。</div>
+          </div>
+        </a>
+        <a href="/category/credit-card"
+           class="flex gap-4 p-4 rounded-xl border-l-4 border-blue-400 bg-blue-50 hover:shadow-sm transition-shadow no-underline">
+          <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-xl flex-shrink-0">💳</div>
+          <div>
+            <div class="font-semibold text-gray-900 text-sm">クレカ修行攻略</div>
+            <div class="text-xs text-gray-600 mt-0.5 leading-relaxed">現金払い設定でUberの売上をクレカに自動請求させる仕組みと、三井住友ゴールドNLなど年会費永年無料を狙う方法。</div>
+          </div>
+        </a>
+        <a href="/category/tax"
+           class="flex gap-4 p-4 rounded-xl border-l-4 border-orange-400 bg-orange-50 hover:shadow-sm transition-shadow no-underline">
+          <div class="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center text-xl flex-shrink-0">📊</div>
+          <div>
+            <div class="font-semibold text-gray-900 text-sm">扶養・税金</div>
+            <div class="text-xs text-gray-600 mt-0.5 leading-relaxed">大学生が気をつけるべき103万・130万の壁、Uber Eatsの雑所得計算、確定申告が必要になる条件など。</div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- タイムライン -->
+    <section>
+      <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-1 h-6 bg-purple-500 rounded-full"></span>
+        Uber Eats始めてからの歩み
+      </h2>
+      <div class="relative pl-6 border-l-2 border-gray-200 space-y-5">
+        <div class="relative">
+          <div class="absolute -left-[1.65rem] w-6 h-6 rounded-full bg-white border-2 border-primary-400 flex items-center justify-center text-xs">🚲</div>
+          <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+            <div class="text-xs text-primary-500 font-semibold mb-1">院1年・春</div>
+            <div class="font-bold text-gray-900 text-sm mb-1">自転車で配達スタート</div>
+            <div class="text-xs text-gray-600 leading-relaxed">友達に招待コードを教えてもらってスタート。最初は時給¥1,200程度で「割に合わないかも…」と感じていた。</div>
+          </div>
+        </div>
+        <div class="relative">
+          <div class="absolute -left-[1.65rem] w-6 h-6 rounded-full bg-white border-2 border-primary-400 flex items-center justify-center text-xs">🛵</div>
+          <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+            <div class="text-xs text-primary-500 font-semibold mb-1">院1年・夏</div>
+            <div class="font-bold text-gray-900 text-sm mb-1">原付に乗り換え</div>
+            <div class="text-xs text-gray-600 leading-relaxed">原付に切り替えたら配達件数が増えて時給¥1,800〜¥2,000に。名古屋は道が広いので原付が最強だと実感。</div>
+          </div>
+        </div>
+        <div class="relative">
+          <div class="absolute -left-[1.65rem] w-6 h-6 rounded-full bg-white border-2 border-primary-400 flex items-center justify-center text-xs">💳</div>
+          <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+            <div class="text-xs text-primary-500 font-semibold mb-1">院1年・冬</div>
+            <div class="font-bold text-gray-900 text-sm mb-1">クレカ修行ハックを発見</div>
+            <div class="text-xs text-gray-600 leading-relaxed">現金払い設定をすると売上がクレカに請求されることに気づく。月5万円稼ぐと年間60万円のカード利用になると計算して戦略を立てた。</div>
+          </div>
+        </div>
+        <div class="relative">
+          <div class="absolute -left-[1.65rem] w-6 h-6 rounded-full bg-white border-2 border-primary-400 flex items-center justify-center text-xs">📝</div>
+          <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+            <div class="text-xs text-primary-500 font-semibold mb-1">院2年・春</div>
+            <div class="font-bold text-gray-900 text-sm mb-1">このブログ開設</div>
+            <div class="text-xs text-gray-600 leading-relaxed">「同じ院生・学生にも教えたい」と思ってブログを始める。研究の合間にSEOの勉強も兼ねて運営中。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 招待コードCTA -->
+    <section class="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 text-center">
+      <div class="text-3xl mb-2">🎁</div>
+      <h3 class="font-bold text-gray-900 mb-2">招待コードで一緒に始めよう</h3>
+      <p class="text-sm text-gray-600 mb-4">
+        私の招待コードからUber Eats配達員に登録すると、<br />
+        <strong class="text-green-700">初回インセンティブがもらえます！</strong>
+      </p>
+      <a href="/roadmap"
+         class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm">
+        📋 始め方ロードマップを見る →
+      </a>
+      <p class="text-xs text-gray-400 mt-3">※ 招待コードは「始め方」ページに記載しています</p>
+    </section>
+
+    <!-- 免責事項 -->
+    <section class="bg-gray-50 rounded-xl p-4">
+      <h3 class="text-sm font-bold text-gray-700 mb-2">免責事項</h3>
+      <ul class="text-xs text-gray-500 space-y-1 list-disc list-inside">
+        <li>当ブログの収益情報はあくまで個人の実績であり、収入を保証するものではありません。</li>
+        <li>クレジットカードに関する情報は執筆時点のものです。最新情報は各カード会社の公式サイトをご確認ください。</li>
+        <li>税金・扶養に関する情報は参考情報です。正確な判断はお住まいの市区町村や税務署にご相談ください。</li>
+        <li>当ブログはアフィリエイト広告を含みます。</li>
+      </ul>
+    </section>
+
+  </div>
+</BaseLayout>

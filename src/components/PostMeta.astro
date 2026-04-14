@@ -1,0 +1,116 @@
+---
+/**
+ * PostMeta — 記事のメタデータ表示コンポーネント
+ * タイトル・カテゴリ・日付・更新日・タグ・読了時間を表示します
+ */
+interface Props {
+  title: string;
+  pubDate: Date;
+  updatedDate?: Date;
+  category?: string;
+  tags?: string[];
+  readingTime?: number; // 分（省略時は自動計算しない）
+  showTitle?: boolean;  // タイトルも一緒に表示するか（デフォルト: true）
+}
+
+const {
+  title,
+  pubDate,
+  updatedDate,
+  category,
+  tags = [],
+  readingTime,
+  showTitle = true,
+} = Astro.props;
+
+const pubDateStr = pubDate.toLocaleDateString('ja-JP', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+const updatedDateStr = updatedDate
+  ? updatedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+  : null;
+
+// カテゴリごとの色・アイコン定義
+const categoryStyle: Record<string, { bg: string; text: string; icon: string }> = {
+  'Uber稼ぎ方': { bg: 'bg-green-100', text: 'text-green-700', icon: '🚗' },
+  'クレカ修行':  { bg: 'bg-blue-100',  text: 'text-blue-700',  icon: '💳' },
+  '扶養・税金':  { bg: 'bg-orange-100', text: 'text-orange-700', icon: '📊' },
+};
+const style = category ? (categoryStyle[category] ?? { bg: 'bg-gray-100', text: 'text-gray-700', icon: '📝' }) : null;
+
+// カテゴリ → URL スラッグ変換
+const categorySlug: Record<string, string> = {
+  'Uber稼ぎ方': 'uber',
+  'クレカ修行': 'credit-card',
+  '扶養・税金': 'tax',
+};
+---
+
+<div class="mb-6">
+  <!-- カテゴリバッジ -->
+  {category && style && (
+    <a
+      href={`/category/${categorySlug[category] ?? category.toLowerCase()}`}
+      class={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full mb-3 ${style.bg} ${style.text} hover:opacity-80 transition-opacity`}
+    >
+      <span>{style.icon}</span>
+      {category}
+    </a>
+  )}
+
+  <!-- タイトル -->
+  {showTitle && (
+    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 leading-snug mb-4">{title}</h1>
+  )}
+
+  <!-- メタ情報バー -->
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-gray-500">
+
+    <!-- 公開日 -->
+    <time datetime={pubDate.toISOString()} class="flex items-center gap-1.5">
+      <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      {pubDateStr}
+    </time>
+
+    <!-- 更新日 -->
+    {updatedDateStr && (
+      <time class="flex items-center gap-1.5 text-primary-600">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        更新 {updatedDateStr}
+      </time>
+    )}
+
+    <!-- 読了時間 -->
+    {readingTime && (
+      <span class="flex items-center gap-1.5">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        約{readingTime}分で読めます
+      </span>
+    )}
+  </div>
+
+  <!-- タグ -->
+  {tags.length > 0 && (
+    <div class="flex flex-wrap gap-2 mt-3">
+      {tags.map(tag => (
+        <a
+          href={`/tag/${tag}`}
+          class="text-xs bg-gray-100 hover:bg-primary-100 text-gray-500 hover:text-primary-700 px-2.5 py-1 rounded-full transition-colors"
+        >
+          #{tag}
+        </a>
+      ))}
+    </div>
+  )}
+</div>

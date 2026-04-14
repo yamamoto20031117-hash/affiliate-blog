@@ -1,0 +1,469 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Uber Eats 確定申告かんたんガイド｜入力するだけで記入内容がわかる"
+  description="Uber Eatsの年間売上を入力するだけで、確定申告書のどこに何を書けばいいかを自動でガイド。家内労働者の特例の適用もワンクリック。"
+>
+
+  <!-- ヒーロー -->
+  <section class="bg-gradient-to-br from-blue-600 to-blue-800 text-white py-8 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <div class="text-4xl mb-2">📝</div>
+      <h1 class="text-2xl sm:text-3xl font-bold mb-2">Uber Eats 確定申告かんたんガイド</h1>
+      <p class="text-blue-100 text-sm max-w-xl mx-auto">
+        売上を入力するだけで、確定申告書に何を書けばいいかがわかります。<br class="hidden sm:inline" />
+        家内労働者の特例を使えばレシート集めも不要！
+      </p>
+    </div>
+  </section>
+
+  <div class="max-w-2xl mx-auto px-4 py-8">
+
+    <!-- ===== STEP 1: 入力 ===== -->
+    <div id="step1" class="mb-8">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">1</span>
+        <h2 class="text-lg font-bold text-gray-900">収入を入力</h2>
+      </div>
+
+      <div class="bg-white border-2 border-gray-200 rounded-2xl p-6 space-y-5">
+        <!-- Uber収入 -->
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-1">Uber Eatsの年間売上（1月〜12月）</label>
+          <p class="text-xs text-gray-400 mb-2">Uberアプリの「売上」画面で確認できます</p>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">¥</span>
+            <input id="uber-income" type="number" placeholder="例: 1200000" min="0"
+              class="w-full pl-8 pr-3 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- バイト有無 -->
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">アルバイトとの掛け持ちはありますか？</label>
+          <div class="flex gap-3">
+            <button id="btn-no-baito" type="button"
+              class="flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all border-blue-500 bg-blue-50 text-blue-700">
+              Uberのみ
+            </button>
+            <button id="btn-yes-baito" type="button"
+              class="flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all border-gray-200 text-gray-500 hover:border-gray-300">
+              バイトも掛け持ち
+            </button>
+          </div>
+        </div>
+
+        <!-- バイト収入（掛け持ち時のみ表示） -->
+        <div id="baito-section" class="hidden">
+          <label class="block text-sm font-bold text-gray-700 mb-1">バイトの年間収入（税込み・額面）</label>
+          <p class="text-xs text-gray-400 mb-2">源泉徴収票の「支払金額」欄の数字</p>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">¥</span>
+            <input id="baito-income" type="number" placeholder="例: 500000" min="0"
+              class="w-full pl-8 pr-3 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- 計算ボタン -->
+        <button id="calc-btn" type="button"
+          class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-base font-bold rounded-xl transition-colors">
+          確定申告の内容を確認する
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== STEP 2: 結果 ===== -->
+    <div id="step2" class="hidden mb-8">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">2</span>
+        <h2 class="text-lg font-bold text-gray-900">あなたの計算結果</h2>
+      </div>
+
+      <!-- 結果カード -->
+      <div id="result-card" class="rounded-2xl p-6 mb-4">
+        <!-- JSで中身を差し替え -->
+      </div>
+
+      <!-- 計算の内訳 -->
+      <div id="calc-detail" class="bg-white border-2 border-gray-200 rounded-2xl p-6 mb-4">
+        <!-- JSで中身を差し替え -->
+      </div>
+
+      <!-- 社会保険の警告 -->
+      <div id="insurance-warning" class="hidden bg-red-50 border-2 border-red-300 rounded-2xl p-5 mb-4">
+        <p class="text-sm font-bold text-red-700 mb-1">⚠️ 社会保険の130万円の壁を超えています</p>
+        <p class="text-xs text-red-600">合計収入が130万を超えると、親の社会保険の扶養から外れ、国保・年金で年間約30万円の自己負担が発生します。</p>
+      </div>
+    </div>
+
+    <!-- ===== STEP 3: 記入ガイド ===== -->
+    <div id="step3" class="hidden mb-8">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">3</span>
+        <h2 class="text-lg font-bold text-gray-900">確定申告書の書き方</h2>
+      </div>
+
+      <!-- 申告不要の場合 -->
+      <div id="no-filing" class="hidden bg-green-50 border-2 border-green-300 rounded-2xl p-6">
+        <p class="text-lg font-bold text-green-800 mb-2">確定申告は不要です！</p>
+        <p class="text-sm text-green-700">Uber収入が95万円以下の場合、特例を使わなくても基礎控除だけで所得税がゼロになります。確定申告の必要はありません。</p>
+      </div>
+
+      <!-- 申告必要の場合 -->
+      <div id="filing-guide" class="hidden space-y-4">
+
+        <!-- 注意カード -->
+        <div class="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-5">
+          <p class="text-sm font-bold text-yellow-800 mb-1">特例のチェックを忘れずに！</p>
+          <p class="text-xs text-yellow-700">確定申告で家内労働者の特例にチェックを入れないと、Uber収入がそのまま所得になり税金がかかります。以下の記入ポイントを必ず確認してください。</p>
+        </div>
+
+        <!-- e-Tax推奨 -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p class="text-xs font-bold text-blue-700 mb-1">💻 国税庁の「確定申告書等作成コーナー」がおすすめ</p>
+          <p class="text-xs text-blue-600">画面の案内に沿って入力するだけで自動計算されます。マイナンバーカードがあればスマホでe-Tax送信も可能。</p>
+        </div>
+
+        <!-- 記入箇所リスト -->
+        <div id="filing-fields" class="space-y-3">
+          <!-- JSで生成 -->
+        </div>
+
+        <!-- 添付書類 -->
+        <div id="attachments" class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <p class="text-xs font-bold text-gray-700 mb-2">添付する書類</p>
+          <div id="attachment-list" class="space-y-1 text-xs text-gray-600">
+            <!-- JSで生成 -->
+          </div>
+        </div>
+
+        <!-- 提出期限 -->
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <p class="text-xs font-bold text-red-700 mb-1">提出期限</p>
+          <p class="text-lg font-black text-red-600">2月16日〜3月15日</p>
+          <p class="text-xs text-red-500 mt-1">e-Taxなら1月から提出可能</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- リセットボタン -->
+    <div id="reset-section" class="hidden text-center mb-8">
+      <button id="reset-btn" type="button" class="text-sm text-gray-400 hover:text-gray-600 underline">
+        入力し直す
+      </button>
+    </div>
+
+    <!-- 関連記事リンク -->
+    <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 text-center">
+      <p class="text-xs text-gray-500 mb-2">もっと詳しく知りたい方はこちら</p>
+      <div class="flex flex-col sm:flex-row gap-2 justify-center">
+        <a href="/posts/uber-fuyou-daigakusei" class="text-sm text-blue-600 hover:underline">扶養の壁を徹底解説 →</a>
+        <a href="/posts/uber-kakuteishinkoku-guide" class="text-sm text-blue-600 hover:underline">確定申告マニュアル →</a>
+      </div>
+    </div>
+
+  </div>
+
+  <script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    /* ---------- 要素取得 ---------- */
+    const uberInput    = document.getElementById('uber-income');
+    const baitoInput   = document.getElementById('baito-income');
+    const btnNoBaito   = document.getElementById('btn-no-baito');
+    const btnYesBaito  = document.getElementById('btn-yes-baito');
+    const baitoSection = document.getElementById('baito-section');
+    const calcBtn      = document.getElementById('calc-btn');
+    const resetBtn     = document.getElementById('reset-btn');
+
+    let hasBaito = false;
+
+    /* ---------- バイト切替 ---------- */
+    btnNoBaito.addEventListener('click', () => {
+      hasBaito = false;
+      btnNoBaito.className  = 'flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all border-blue-500 bg-blue-50 text-blue-700';
+      btnYesBaito.className = 'flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all border-gray-200 text-gray-500 hover:border-gray-300';
+      baitoSection.classList.add('hidden');
+      baitoInput.value = '';
+    });
+    btnYesBaito.addEventListener('click', () => {
+      hasBaito = true;
+      btnYesBaito.className = 'flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all border-yellow-500 bg-yellow-50 text-yellow-700';
+      btnNoBaito.className  = 'flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all border-gray-200 text-gray-500 hover:border-gray-300';
+      baitoSection.classList.remove('hidden');
+    });
+
+    /* ---------- 計算 ---------- */
+    calcBtn.addEventListener('click', () => {
+      const uberIncome  = parseInt(uberInput.value) || 0;
+      const baitoIncome = hasBaito ? (parseInt(baitoInput.value) || 0) : 0;
+
+      if (uberIncome <= 0) {
+        uberInput.style.borderColor = '#ef4444';
+        return;
+      }
+      uberInput.style.borderColor = '';
+
+      /* --- 計算ロジック --- */
+      // 給与所得控除（バイト側）
+      let kyuyoKojo = 0;
+      let kyuyoShotoku = 0;
+      if (baitoIncome > 0) {
+        if (baitoIncome <= 1625000) {
+          kyuyoKojo = 650000;
+        } else if (baitoIncome <= 1800000) {
+          kyuyoKojo = Math.floor(baitoIncome * 0.4) - 100000;
+        } else if (baitoIncome <= 3600000) {
+          kyuyoKojo = Math.floor(baitoIncome * 0.3) + 80000;
+        } else {
+          kyuyoKojo = Math.floor(baitoIncome * 0.2) + 440000;
+        }
+        if (kyuyoKojo < 650000) kyuyoKojo = 650000;
+        kyuyoShotoku = Math.max(0, baitoIncome - kyuyoKojo);
+      }
+
+      // 家内労働者の特例で使える経費
+      const tokurei_max = 650000;
+      let tokureiUsable = Math.max(0, tokurei_max - kyuyoKojo);
+      let tokureiAmount = Math.min(tokureiUsable, uberIncome); // 収入以上は引けない
+
+      // 雑所得
+      const zatsuShotoku = Math.max(0, uberIncome - tokureiAmount);
+
+      // 合計所得
+      const totalShotoku = kyuyoShotoku + zatsuShotoku;
+
+      // 基礎控除 95万
+      const kisokojo = 950000;
+      const kazeiShotoku = Math.max(0, totalShotoku - kisokojo);
+
+      // 所得税（簡易計算）
+      let tax = 0;
+      if (kazeiShotoku > 0) {
+        if (kazeiShotoku <= 1950000) {
+          tax = Math.floor(kazeiShotoku * 0.05);
+        } else if (kazeiShotoku <= 3300000) {
+          tax = Math.floor(kazeiShotoku * 0.10) - 97500;
+        } else {
+          tax = Math.floor(kazeiShotoku * 0.20) - 427500;
+        }
+        // 復興特別所得税
+        tax = Math.floor(tax * 1.021);
+      }
+
+      // 合計収入
+      const totalIncome = uberIncome + baitoIncome;
+
+      // 確定申告が必要か
+      // Uberのみ: 収入95万以下なら特例なしでも基礎控除で非課税→申告不要
+      // Uberのみ: 収入95万超なら特例のために申告必要
+      // 掛け持ち: Uber所得（特例適用前）> 20万なら申告必要...
+      //          ただし掛け持ちで合計所得 > 基礎控除なら申告必要
+      let needsFiling = false;
+      let filingReason = '';
+      if (!hasBaito) {
+        if (uberIncome <= 950000) {
+          needsFiling = false;
+        } else {
+          needsFiling = true;
+          filingReason = '特例を適用するため';
+        }
+      } else {
+        // 掛け持ち: 給与以外の所得が20万超
+        const uberShotokuRaw = Math.max(0, uberIncome - tokureiAmount);
+        if (uberShotokuRaw > 200000 || kazeiShotoku > 0) {
+          needsFiling = true;
+          filingReason = hasBaito ? 'Uberの所得があるため' : '特例を適用するため';
+        }
+      }
+
+      // 社会保険の壁
+      const overInsurance = totalIncome > 1300000;
+
+      /* --- 表示 --- */
+      renderResult(uberIncome, baitoIncome, hasBaito, kyuyoKojo, kyuyoShotoku, tokureiAmount, zatsuShotoku, totalShotoku, kisokojo, kazeiShotoku, tax, totalIncome, needsFiling, filingReason, overInsurance);
+    });
+
+    /* ---------- リセット ---------- */
+    resetBtn.addEventListener('click', () => {
+      uberInput.value = '';
+      baitoInput.value = '';
+      document.getElementById('step2').classList.add('hidden');
+      document.getElementById('step3').classList.add('hidden');
+      document.getElementById('reset-section').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    /* ---------- 結果描画 ---------- */
+    function renderResult(uberIncome, baitoIncome, hasBaito, kyuyoKojo, kyuyoShotoku, tokureiAmount, zatsuShotoku, totalShotoku, kisokojo, kazeiShotoku, tax, totalIncome, needsFiling, filingReason, overInsurance) {
+      const fmt = (n) => n.toLocaleString('ja-JP');
+      const man = (n) => {
+        if (n >= 10000) return Math.floor(n / 10000) + '万' + (n % 10000 > 0 ? fmt(n % 10000) : '') + '円';
+        return fmt(n) + '円';
+      };
+
+      // Step2 表示
+      const step2 = document.getElementById('step2');
+      step2.classList.remove('hidden');
+
+      // 結果カード
+      const resultCard = document.getElementById('result-card');
+      if (tax === 0) {
+        resultCard.className = 'rounded-2xl p-6 mb-4 bg-green-50 border-2 border-green-300';
+        resultCard.innerHTML = `
+          <p class="text-2xl font-black text-green-800 mb-1">所得税 ¥0</p>
+          <p class="text-sm text-green-700">${needsFiling ? '確定申告で特例にチェックすることで、所得税はゼロになります。' : '基礎控除の範囲内なので、所得税はかかりません。'}</p>
+        `;
+      } else {
+        resultCard.className = 'rounded-2xl p-6 mb-4 bg-orange-50 border-2 border-orange-300';
+        resultCard.innerHTML = `
+          <p class="text-2xl font-black text-orange-800 mb-1">所得税 ¥${fmt(tax)}</p>
+          <p class="text-sm text-orange-700">所得が基礎控除を超えているため、所得税が発生します。</p>
+        `;
+      }
+
+      // 計算内訳
+      const detail = document.getElementById('calc-detail');
+      let detailHTML = '<p class="text-sm font-bold text-gray-700 mb-3">計算の内訳</p>';
+
+      if (hasBaito && baitoIncome > 0) {
+        detailHTML += renderRow('バイト収入', fmt(baitoIncome));
+        detailHTML += renderRow('給与所得控除', '− ' + fmt(kyuyoKojo), 'text-blue-600');
+        detailHTML += renderRow('給与所得', fmt(kyuyoShotoku), 'font-bold');
+        detailHTML += '<hr class="my-3 border-gray-200" />';
+      }
+
+      detailHTML += renderRow('Uber収入', fmt(uberIncome));
+      if (tokureiAmount > 0) {
+        detailHTML += renderRow('家内労働者の特例', '− ' + fmt(tokureiAmount), 'text-blue-600');
+      } else if (hasBaito) {
+        detailHTML += renderRow('家内労働者の特例', '0円（給与所得控除で枠使い切り）', 'text-red-500 text-xs');
+      }
+      detailHTML += renderRow('雑所得', fmt(zatsuShotoku), 'font-bold');
+      detailHTML += '<hr class="my-3 border-gray-200" />';
+
+      detailHTML += renderRow('合計所得', fmt(totalShotoku), 'font-bold');
+      detailHTML += renderRow('基礎控除', '− ' + fmt(kisokojo), 'text-blue-600');
+      detailHTML += renderRow('課税所得', fmt(kazeiShotoku), 'font-bold');
+
+      if (tax > 0) {
+        detailHTML += '<hr class="my-3 border-gray-200" />';
+        detailHTML += renderRow('所得税（復興税込み）', '¥' + fmt(tax), 'font-bold text-orange-700');
+      }
+
+      detail.innerHTML = detailHTML;
+
+      // 社会保険警告
+      const insWarn = document.getElementById('insurance-warning');
+      if (overInsurance) {
+        insWarn.classList.remove('hidden');
+      } else {
+        insWarn.classList.add('hidden');
+      }
+
+      // Step3 表示
+      const step3 = document.getElementById('step3');
+      step3.classList.remove('hidden');
+
+      const noFiling    = document.getElementById('no-filing');
+      const filingGuide = document.getElementById('filing-guide');
+
+      if (!needsFiling) {
+        noFiling.classList.remove('hidden');
+        filingGuide.classList.add('hidden');
+      } else {
+        noFiling.classList.add('hidden');
+        filingGuide.classList.remove('hidden');
+        renderFilingGuide(uberIncome, baitoIncome, hasBaito, kyuyoKojo, kyuyoShotoku, tokureiAmount, zatsuShotoku, totalShotoku, kazeiShotoku, tax);
+      }
+
+      // リセットボタン表示
+      document.getElementById('reset-section').classList.remove('hidden');
+
+      // スクロール
+      step2.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function renderRow(label, value, extraClass) {
+      return `<div class="flex justify-between items-center py-1.5 text-sm">
+        <span class="text-gray-600">${label}</span>
+        <span class="${extraClass || 'text-gray-900'}">${value}</span>
+      </div>`;
+    }
+
+    /* ---------- 記入ガイド描画 ---------- */
+    function renderFilingGuide(uberIncome, baitoIncome, hasBaito, kyuyoKojo, kyuyoShotoku, tokureiAmount, zatsuShotoku, totalShotoku, kazeiShotoku, tax) {
+      const fmt = (n) => n.toLocaleString('ja-JP');
+      const fields = document.getElementById('filing-fields');
+      let html = '';
+
+      // 雑所得の収入金額
+      html += fieldCard(
+        '❶ 雑所得の「収入金額」欄',
+        fmt(uberIncome) + '円',
+        'Uber Eatsの年間売上総額をそのまま記入'
+      );
+
+      // 雑所得の必要経費
+      html += fieldCard(
+        '❷ 雑所得の「必要経費」欄',
+        tokureiAmount > 0 ? fmt(tokureiAmount) + '円' : '実際の経費を記入',
+        tokureiAmount > 0 ? '家内労働者の特例の金額を記入（レシート不要）' : '特例が使えないため、実際にかかった経費を記入してください'
+      );
+
+      // 雑所得
+      html += fieldCard(
+        '❸ 雑所得の「所得金額」欄',
+        fmt(zatsuShotoku) + '円',
+        tokureiAmount > 0 ? '数字の前に「特」を丸で囲んで記入 ← これが特例の印！' : ''
+      );
+
+      if (hasBaito && baitoIncome > 0) {
+        html += fieldCard(
+          '❹ 給与所得の「収入金額」欄',
+          fmt(baitoIncome) + '円',
+          '源泉徴収票の「支払金額」を転記'
+        );
+        html += fieldCard(
+          '❺ 給与所得の「所得金額」欄',
+          fmt(kyuyoShotoku) + '円',
+          '源泉徴収票の「給与所得控除後の金額」を転記'
+        );
+      }
+
+      if (tokureiAmount > 0) {
+        const stepNum = hasBaito ? '❻' : '❹';
+        html += fieldCard(
+          stepNum + ' 第二表「特例適用条文等」欄',
+          '措法27',
+          'この記載で家内労働者の特例を使っていることを示します'
+        );
+      }
+
+      fields.innerHTML = html;
+
+      // 添付書類
+      const attachList = document.getElementById('attachment-list');
+      let attachHTML = '';
+      if (tokureiAmount > 0) {
+        attachHTML += '<p>📎 家内労働者等の事業所得等の所得計算の特例の適用を受ける場合の必要経費の額の計算書</p>';
+      }
+      if (hasBaito) {
+        attachHTML += '<p>📎 バイト先の源泉徴収票</p>';
+      }
+      attachHTML += '<p>📎 マイナンバーカード（e-Taxの場合）</p>';
+      attachList.innerHTML = attachHTML;
+    }
+
+    function fieldCard(title, value, note) {
+      return `<div class="bg-white border-2 border-gray-200 rounded-xl p-4">
+        <p class="text-xs font-bold text-gray-500 mb-1">${title}</p>
+        <p class="text-xl font-black text-gray-900 mb-1">${value}</p>
+        ${note ? '<p class="text-xs text-gray-500">' + note + '</p>' : ''}
+      </div>`;
+    }
+  });
+  </script>
+
+</BaseLayout>

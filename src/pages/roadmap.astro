@@ -1,0 +1,235 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AffiliateBox from '@/components/AffiliateBox.astro';
+
+const steps = [
+  {
+    number: 1,
+    icon: '📱',
+    title: 'アプリをダウンロード・登録',
+    time: '5分',
+    color: 'blue',
+    description: 'Uber Eats配達パートナーアプリをインストールして、招待コードを使って登録します。招待コードを使うと初回ボーナスが増えるのでお得です。',
+    tips: [
+      '招待コードはこのページ下部からどうぞ',
+      'メールアドレスと電話番号が必要です',
+      'Uber本体アプリとは別のアプリです',
+    ],
+    caution: null,
+  },
+  {
+    number: 2,
+    icon: '📄',
+    title: '必要書類を提出する',
+    time: '10〜30分',
+    color: 'blue',
+    description: '本人確認書類と乗り物の書類をアプリ内でアップロードします。審査に通れば稼働開始できます。',
+    tips: [
+      '自転車：運転免許証 or マイナンバーカード（いずれか1つ）',
+      '原付・バイク：運転免許証＋車両のナンバープレート写真',
+      '車：運転免許証＋車検証',
+    ],
+    caution: '書類の審査には1〜3日かかる場合があります',
+  },
+  {
+    number: 3,
+    icon: '🎒',
+    title: '配達バッグを用意する',
+    time: '〜翌日',
+    color: 'green',
+    description: 'Uber公式バッグは購入必須ではありませんが、大型の配達バッグがあるほうが商品を安全に運べます。Amazonで2,000円前後のもので十分です。',
+    tips: [
+      '30L前後のリュック型がおすすめ',
+      'Uber公式グッズでなくてもOK',
+      '断熱素材があると飲み物も安心',
+    ],
+    caution: null,
+  },
+  {
+    number: 4,
+    icon: '📍',
+    title: 'はじめての稼働に出る',
+    time: '初回は2〜3時間',
+    color: 'green',
+    description: '初回は注文の多そうな繁華街・駅前エリアに行き、アプリをオンラインにするだけです。注文が入ったらナビに従って配達します。',
+    tips: [
+      '初回はランチ（11:30〜13:30）かディナー（18〜21時）を狙う',
+      'アプリのヒートマップ（赤いエリア）に向かう',
+      '最初の2〜3件は慣れるまで時間がかかっても大丈夫',
+    ],
+    caution: '最初は件数より「流れを掴む」ことを優先しましょう',
+  },
+  {
+    number: 5,
+    icon: '💰',
+    title: 'インセンティブを確認する',
+    time: '毎週月曜に確認',
+    color: 'yellow',
+    description: 'アプリの「プロモーション」タブを毎週月曜に確認しましょう。クエスト（件数ボーナス）やブースト（報酬倍率アップ）を活用することで時給が大幅に上がります。',
+    tips: [
+      'クエスト：○件配達で＋○円の追加ボーナス',
+      'ブースト：特定エリア・時間帯の報酬が1.2〜2.0倍に',
+      '週のうち達成できそうなクエストを狙って稼働日を決める',
+    ],
+    caution: null,
+  },
+  {
+    number: 6,
+    icon: '📊',
+    title: '税金・扶養の確認（大学生・主婦向け）',
+    time: '年1回',
+    color: 'orange',
+    description: '扶養に入っている場合は年間収入（売上）の管理が重要です。月ごとに売上をメモしておき、130万円を超えないよう注意しましょう。',
+    tips: [
+      '年間売上130万円未満 → 社会保険の扶養維持',
+      '副業所得20万円超 → 確定申告が必要',
+      '経費（ガソリン代・スマホ代など）をレシートで記録しておく',
+    ],
+    caution: '詳しくは「扶養・税金」カテゴリの記事も参照',
+  },
+  {
+    number: 7,
+    icon: '💳',
+    title: '【上級】現金受け取り×クレカ修行',
+    time: '設定5分',
+    color: 'purple',
+    description: '現金受け取りをONにすることで、お客さんが払った現金がクレジットカードの利用額として計上される仕組みを活用。扶養の範囲内でUberをすると、年間100万円のクレカ修行がほぼ自動で達成できます。',
+    tips: [
+      '三井住友ゴールドNLの100万修行に活用できる',
+      '現金をきちんと管理することが前提',
+      '詳細は「クレカ修行」カテゴリの記事を参照',
+    ],
+    caution: '現在検証中の情報です。実施前に記事を確認してください',
+  },
+];
+
+const colorMap: Record<string, { bg: string; border: string; num: string; badge: string }> = {
+  blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   num: 'bg-blue-600',   badge: 'bg-blue-100 text-blue-700' },
+  green:  { bg: 'bg-green-50',  border: 'border-green-200',  num: 'bg-green-600',  badge: 'bg-green-100 text-green-700' },
+  yellow: { bg: 'bg-yellow-50', border: 'border-yellow-200', num: 'bg-yellow-500', badge: 'bg-yellow-100 text-yellow-700' },
+  orange: { bg: 'bg-orange-50', border: 'border-orange-200', num: 'bg-orange-500', badge: 'bg-orange-100 text-orange-700' },
+  purple: { bg: 'bg-purple-50', border: 'border-purple-200', num: 'bg-purple-600', badge: 'bg-purple-100 text-purple-700' },
+};
+---
+
+<BaseLayout title="Uber Eats配達員 はじめ方ロードマップ" description="Uber Eats配達員の始め方をステップ形式でわかりやすく解説。登録から初回稼働、インセンティブ攻略、クレカ修行まで完全ガイド。">
+
+  <!-- ヒーロー -->
+  <section class="bg-gradient-to-br from-primary-600 to-primary-800 text-white py-10 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <p class="text-primary-200 text-xs font-semibold tracking-widest mb-3 uppercase">Step by Step Guide</p>
+      <h1 class="text-2xl sm:text-3xl font-bold mb-3">Uber Eats配達員<br class="sm:hidden" />はじめ方ロードマップ</h1>
+      <p class="text-primary-100 text-sm max-w-xl mx-auto">
+        登録から初回稼働、時給2,000円を達成するまでの全ステップを解説。<br class="hidden sm:inline" />
+        読み終わったら今日から始められます。
+      </p>
+      <div class="flex justify-center gap-4 mt-5 text-sm">
+        <div class="bg-white/20 rounded-lg px-4 py-2">
+          <div class="font-bold text-lg">7</div>
+          <div class="text-xs text-primary-200">ステップ</div>
+        </div>
+        <div class="bg-white/20 rounded-lg px-4 py-2">
+          <div class="font-bold text-lg">〜1日</div>
+          <div class="text-xs text-primary-200">で始められる</div>
+        </div>
+        <div class="bg-white/20 rounded-lg px-4 py-2">
+          <div class="font-bold text-lg">¥2,000</div>
+          <div class="text-xs text-primary-200">目標時給</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="max-w-2xl mx-auto px-4 py-10">
+
+    <!-- ステップ一覧 -->
+    <div class="relative">
+      <!-- 縦線 -->
+      <div class="absolute left-6 top-8 bottom-8 w-0.5 bg-gray-200 hidden sm:block"></div>
+
+      <div class="space-y-6">
+        {steps.map((step) => {
+          const c = colorMap[step.color];
+          return (
+            <div class={`relative sm:pl-16 rounded-2xl border ${c.border} ${c.bg} p-5`}>
+
+              <!-- ステップ番号（デスクトップ：左側に絶対配置） -->
+              <div class={`hidden sm:flex absolute left-0 top-5 w-12 h-12 rounded-full ${c.num} text-white font-bold text-lg items-center justify-center shadow`}>
+                {step.number}
+              </div>
+
+              <!-- ヘッダー -->
+              <div class="flex items-start gap-3 mb-3">
+                <span class={`sm:hidden inline-flex w-8 h-8 rounded-full ${c.num} text-white font-bold text-sm items-center justify-center flex-shrink-0`}>
+                  {step.number}
+                </span>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xl">{step.icon}</span>
+                    <h2 class="font-bold text-gray-900 text-base">{step.title}</h2>
+                    <span class={`text-xs px-2 py-0.5 rounded-full font-semibold ${c.badge}`}>
+                      ⏱ {step.time}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p class="text-sm text-gray-700 leading-relaxed mb-3">{step.description}</p>
+
+              <!-- Tips -->
+              <ul class="space-y-1 mb-2">
+                {step.tips.map(tip => (
+                  <li class="text-sm text-gray-600 flex items-start gap-2">
+                    <span class="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+
+              {step.caution && (
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-700 mt-2">
+                  ⚠️ {step.caution}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    <!-- 招待コードCTA -->
+    <div class="mt-10 bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-2xl p-6 text-center">
+      <div class="text-3xl mb-3">🎁</div>
+      <h3 class="font-bold text-green-900 text-lg mb-2">招待コードで登録してボーナスをもらおう</h3>
+      <p class="text-sm text-green-700 mb-4">
+        通常の登録より初回ボーナスが増えます。<br class="sm:hidden" />
+        登録前に必ず招待コードを入力してください。
+      </p>
+      <AffiliateBox
+        name="Uber Eats 配達員登録（招待コード特典あり）"
+        description="招待コードから登録すると初回ボーナスが通常より増えます。名古屋エリアはいま需要が多く稼ぎやすい状況です。"
+        price="登録無料"
+        url="https://example.com/uber-invite"
+        badge="招待ボーナスあり"
+        rating={4.9}
+      />
+    </div>
+
+    <!-- 関連記事 -->
+    <div class="mt-8 grid sm:grid-cols-2 gap-4">
+      <a href="/posts/uber-eats-nagoya-gentsuki" class="block bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow group">
+        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">Uber稼ぎ方</span>
+        <p class="text-sm font-bold text-gray-900 mt-2 group-hover:text-primary-600 transition-colors">
+          名古屋・原付で時給2,000円を達成した実際のデータを公開
+        </p>
+      </a>
+      <a href="/posts/uber-fuyou-daigakusei" class="block bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow group">
+        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">扶養・税金</span>
+        <p class="text-sm font-bold text-gray-900 mt-2 group-hover:text-primary-600 transition-colors">
+          大学生がUber Eatsをするときの扶養・税金まとめ
+        </p>
+      </a>
+    </div>
+
+  </div>
+</BaseLayout>

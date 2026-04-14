@@ -1,0 +1,962 @@
+---
+// 時給マップ - D3.js
+// ズームアウト: 都道府県ポリゴン色分け
+// クリック: 市区町村ポリゴン境界で色分け
+---
+
+<div class="relative select-none">
+  <div id="map-wrap"
+       class="rounded-2xl border border-slate-200 overflow-hidden shadow-sm"
+       style="height:520px; background:#dbeafe; position:relative;">
+
+    <svg id="jmap" style="width:100%;height:100%;display:block;cursor:grab;"></svg>
+
+    <!-- モード切替ナビ -->
+    <div id="map-nav" class="absolute top-3 left-3 z-10 flex gap-1">
+      <button type="button" id="map-btn-pref"
+        class="bg-blue-600 text-white backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-blue-600 transition-colors">
+        🗾 都道府県
+      </button>
+      <button type="button" id="map-btn-city"
+        class="bg-white/95 text-gray-400 backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-gray-200 transition-colors cursor-not-allowed" disabled>
+        📍 市区町村
+      </button>
+    </div>
+
+    <!-- フィルター -->
+    <div id="map-filters" class="absolute top-12 left-3 z-10 flex flex-col gap-1.5">
+      <!-- 曜日フィルター -->
+      <div class="bg-white/95 backdrop-blur rounded-lg shadow border border-gray-200 px-2 py-1.5 flex items-center gap-1 flex-wrap">
+        <span class="text-[10px] text-gray-400 mr-0.5">📅</span>
+        <button type="button" data-day="all" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-600 text-white">全て</button>
+        <button type="button" data-day="mon" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">月</button>
+        <button type="button" data-day="tue" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">火</button>
+        <button type="button" data-day="wed" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">水</button>
+        <button type="button" data-day="thu" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">木</button>
+        <button type="button" data-day="fri" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">金</button>
+        <button type="button" data-day="sat" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">土</button>
+        <button type="button" data-day="sun" class="map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">日</button>
+      </div>
+      <!-- 乗り物フィルター -->
+      <div class="bg-white/95 backdrop-blur rounded-lg shadow border border-gray-200 px-2 py-1.5 flex items-center gap-1 flex-wrap">
+        <span class="text-[10px] text-gray-400 mr-0.5">🚗</span>
+        <button type="button" data-vehicle="all"          class="map-veh-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-600 text-white">全て</button>
+        <button type="button" data-vehicle="walk_bicycle"  class="map-veh-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">🚲徒歩</button>
+        <button type="button" data-vehicle="moped50"       class="map-veh-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">🛵原付</button>
+        <button type="button" data-vehicle="motorcycle"    class="map-veh-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">🏍バイク</button>
+        <button type="button" data-vehicle="kei_car"       class="map-veh-btn text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-100 text-gray-500 hover:bg-gray-200">🚗軽自動車</button>
+      </div>
+    </div>
+
+    <!-- ズームボタン -->
+    <div class="absolute top-3 right-3 flex flex-col gap-1 z-10">
+      <button id="btn-in"  class="w-8 h-8 bg-white rounded-lg shadow font-bold text-lg hover:bg-gray-50 flex items-center justify-center border border-gray-200 text-gray-700">+</button>
+      <button id="btn-out" class="w-8 h-8 bg-white rounded-lg shadow font-bold text-lg hover:bg-gray-50 flex items-center justify-center border border-gray-200 text-gray-700">−</button>
+    </div>
+
+    <!-- 凡例 -->
+    <div class="absolute bottom-3 left-3 bg-white/95 backdrop-blur rounded-xl shadow px-3 py-2.5 text-[10px] z-10 border border-gray-100">
+      <p class="font-bold text-gray-600 mb-1.5">平均時給（¥500刻み）</p>
+      <div class="space-y-1">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block" style="background:#06b6d4"></span>¥3,000以上</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block" style="background:#22c55e"></span>¥2,500〜2,999</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block" style="background:#84cc16"></span>¥2,000〜2,499</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block" style="background:#facc15"></span>¥1,500〜1,999</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block" style="background:#fb923c"></span>¥1,000〜1,499</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block" style="background:#ef4444"></span>¥1,000未満</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block bg-slate-200"></span>データなし</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e1e1e"></span>Uber非対応</span>
+      </div>
+      <p class="text-gray-400 mt-1.5 leading-tight">都道府県タップで市区町村を表示</p>
+    </div>
+
+    <!-- ポップアップ -->
+    <div id="map-popup"
+         class="hidden absolute z-20 bg-white rounded-xl shadow-xl border border-gray-100 p-3 min-w-[190px] pointer-events-none"
+         style="transform:translate(-50%,-115%);">
+      <p id="pp-city"    class="font-bold text-gray-900 text-sm mb-0"></p>
+      <p id="pp-pref"    class="text-[10px] text-gray-400 mb-1"></p>
+      <p id="pp-rate"    class="text-xl font-black mb-0"></p>
+      <p id="pp-tier"    class="text-[10px] font-semibold mb-1 px-1.5 py-0.5 rounded-full w-fit"></p>
+      <div id="pp-breakdown" class="hidden border-t border-gray-100 mt-1.5 pt-1.5 space-y-0.5">
+        <p class="text-[10px] text-gray-400 font-bold">売上の内訳（平均）</p>
+        <div class="flex justify-between text-[11px]">
+          <span class="text-gray-500">正味の料金</span>
+          <span id="pp-base" class="font-bold text-gray-700"></span>
+        </div>
+        <div class="flex justify-between text-[11px]">
+          <span class="text-gray-500">プロモーション</span>
+          <span id="pp-promo" class="font-bold text-blue-600"></span>
+        </div>
+      </div>
+      <p id="pp-count"   class="text-xs text-gray-400 mt-1"></p>
+      <p id="pp-vehicle" class="text-xs text-gray-400"></p>
+      <div class="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45"></div>
+    </div>
+
+    <!-- ローディング -->
+    <div id="map-loading"
+         class="absolute inset-0 flex flex-col items-center justify-center bg-blue-50/80 backdrop-blur-sm">
+      <div class="text-4xl mb-3 animate-bounce">🗾</div>
+      <p id="loading-msg" class="text-sm text-slate-500 font-medium">地図データを読み込み中...</p>
+      <p class="text-xs text-slate-400 mt-1">初回のみ数秒かかることがあります</p>
+    </div>
+
+    <!-- 市区町村ローディング -->
+    <div id="city-loading"
+         class="hidden absolute top-12 left-3 bg-white/95 backdrop-blur rounded-lg shadow px-3 py-2 text-xs z-10 border border-gray-100">
+      <span class="animate-pulse">⏳</span> 市区町村データ読込中...
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ===== カラースケール =====
+  function rateColor(avg: number): string {
+    if (avg >= 3000) return '#06b6d4';
+    if (avg >= 2500) return '#22c55e';
+    if (avg >= 2000) return '#84cc16';
+    if (avg >= 1500) return '#facc15';
+    if (avg >= 1000) return '#fb923c';
+    return '#ef4444';
+  }
+  function rateLabel(avg: number): string {
+    if (avg >= 3000) return '¥3,000以上';
+    if (avg >= 2500) return '¥2,500〜2,999';
+    if (avg >= 2000) return '¥2,000〜2,499';
+    if (avg >= 1500) return '¥1,500〜1,999';
+    if (avg >= 1000) return '¥1,000〜1,499';
+    return '¥1,000未満';
+  }
+
+  // ===== 都道府県 名前⇔コード 双方向マッピング =====
+  const PREF_LIST = [
+    '北海道','青森','岩手','宮城','秋田','山形','福島',
+    '茨城','栃木','群馬','埼玉','千葉','東京','神奈川',
+    '新潟','富山','石川','福井','山梨','長野',
+    '岐阜','静岡','愛知','三重',
+    '滋賀','京都','大阪','兵庫','奈良','和歌山',
+    '鳥取','島根','岡山','広島','山口',
+    '徳島','香川','愛媛','高知',
+    '福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄',
+  ];
+  // 名前→コード  ("東京" → "13")
+  const PREF_CODE: Record<string, string> = {};
+  // ID番号→名前  (13 → "東京")
+  const PREF_BY_ID: Record<number, string> = {};
+  PREF_LIST.forEach((name, i) => {
+    const code = String(i + 1).padStart(2, '0');
+    PREF_CODE[name] = code;
+    PREF_BY_ID[i + 1] = name;
+  });
+
+  // 英語名→日本語名
+  const ENG_TO_JA: Record<string, string> = {
+    'Hokkaido':'北海道','Aomori':'青森','Iwate':'岩手','Miyagi':'宮城','Akita':'秋田',
+    'Yamagata':'山形','Fukushima':'福島','Ibaraki':'茨城','Tochigi':'栃木','Gunma':'群馬',
+    'Saitama':'埼玉','Chiba':'千葉','Tokyo':'東京','Kanagawa':'神奈川','Niigata':'新潟',
+    'Toyama':'富山','Ishikawa':'石川','Fukui':'福井','Yamanashi':'山梨','Nagano':'長野',
+    'Gifu':'岐阜','Shizuoka':'静岡','Aichi':'愛知','Mie':'三重','Shiga':'滋賀',
+    'Kyoto':'京都','Osaka':'大阪','Hyogo':'兵庫','Nara':'奈良','Wakayama':'和歌山',
+    'Tottori':'鳥取','Shimane':'島根','Okayama':'岡山','Hiroshima':'広島','Yamaguchi':'山口',
+    'Tokushima':'徳島','Kagawa':'香川','Ehime':'愛媛','Kochi':'高知','Fukuoka':'福岡',
+    'Saga':'佐賀','Nagasaki':'長崎','Kumamoto':'熊本','Oita':'大分','Miyazaki':'宮崎',
+    'Kagoshima':'鹿児島','Okinawa':'沖縄',
+  };
+
+  // ===== 離島フィルタ用: 本土バウンディングボックス (SVG投影後の近似) =====
+  // Uber配達圏外の離島（小笠原、伊豆諸島、トカラ列島等）を除外するため
+  // 緯度約30°〜46°, 経度約128°〜146° の本土エリアのみ対象
+  const MAINLAND_LAT = [30.0, 46.0];
+  const MAINLAND_LNG = [128.0, 146.0];
+
+  // 都道府県ラベル位置のオーバーライド（離島でcentroidがずれる県）
+  // [経度, 緯度] で指定 → projで変換して使う
+  const PREF_LABEL_POS: Record<string, [number, number]> = {
+    '東京':     [139.75, 35.68],   // 23区中心
+    '鹿児島':   [130.55, 31.56],   // 鹿児島市付近
+    '沖縄':     [127.68, 26.34],   // 那覇市付近
+    '長崎':     [129.87, 32.75],   // 長崎市付近
+    '北海道':   [143.20, 43.06],   // 札幌付近
+  };
+
+  // GeoJSONプロパティから日本語都道府県名を取得（あらゆるフォーマットに対応）
+  // 「北海道」は「道」を除去しない（PREF_LISTのキーが「北海道」のため）
+  function stripSuffix(name: string): string {
+    if (name === '北海道') return '北海道';
+    return name.replace(/[都道府県]$/,'');
+  }
+  function getPrefNameJa(props: any): string {
+    // nam_ja があればそれを使う
+    if (props.nam_ja) return stripSuffix(props.nam_ja);
+    // name が日本語なら使う
+    if (props.name && /[\u3000-\u9fff]/.test(props.name)) return stripSuffix(props.name);
+    // nam が英語 → 日本語変換
+    if (props.nam && ENG_TO_JA[props.nam]) return ENG_TO_JA[props.nam];
+    // id ベース
+    if (props.id && PREF_BY_ID[props.id]) return PREF_BY_ID[props.id];
+    // フォールバック
+    const raw = (props.name ?? props.nam ?? '');
+    return stripSuffix(raw);
+  }
+
+  // ===== Uber Eats 対応エリア =====
+  const UBER_AREA: Record<string, Set<string>> = {
+    '北海道': new Set(['札幌市','江別市','千歳市','恵庭市','石狩市','北広島市','旭川市','函館市','北斗市','釧路市','帯広市','苫小牧市','小樽市','室蘭市','登別市','岩見沢市','北見市','東神楽町','音更町','倶知安町','七飯町','南幌町','滝川市']),
+    '青森': new Set(['青森市','八戸市','弘前市','むつ市','三沢市','平川市','六戸町','十和田市']),
+    '岩手': new Set(['盛岡市','一関市','北上市','滝沢市','花巻市','奥州市']),
+    '宮城': new Set(['仙台市','名取市','多賀城市','塩竈市','富谷市','利府町','石巻市','大崎市','大河原町','岩沼市','東松島市','登米市','松島町','七ヶ浜町','大和町','亘理町']),
+    '秋田': new Set(['秋田市','大仙市','横手市','北秋田市','能代市','大館市','由利本荘市']),
+    '山形': new Set(['山形市','鶴岡市','酒田市','天童市','東根市','米沢市','中山町','寒河江市']),
+    '福島': new Set(['福島市','郡山市','いわき市','二本松市','会津若松市','南相馬市','猪苗代町','白河市','須賀川市','伊達市','相馬市']),
+    '茨城': new Set(['水戸市','つくば市','土浦市','日立市','ひたちなか市','筑西市','牛久市','龍ケ崎市','取手市','守谷市','古河市','かすみがうら市','つくばみらい市','利根町','坂東市','常総市','東海村','神栖市','笠間市','結城市','那珂市','阿見町','鹿嶋市','茨城町','境町']),
+    '栃木': new Set(['宇都宮市','小山市','那須塩原市','栃木市','足利市','佐野市','下野市','壬生町','大田原市','野木町','鹿沼市','上三川町']),
+    '群馬': new Set(['前橋市','高崎市','太田市','伊勢崎市','館林市','渋川市','みどり市','吉岡町','大泉町','富岡市','桐生市','藤岡市','邑楽町','安中市','千代田町','板倉町','明和町','榛東村','玉村町']),
+    '埼玉': new Set(['さいたま市','川越市','川口市','所沢市','越谷市','草加市','春日部市','上尾市','熊谷市','新座市','狭山市','久喜市','入間市','深谷市','朝霞市','戸田市','志木市','和光市','富士見市','三郷市','蕨市','八潮市','ふじみ野市','坂戸市','鶴ヶ島市','桶川市','北本市','蓮田市','吉川市','鴻巣市','行田市','加須市','羽生市','白岡市','秩父市','飯能市','東松山市','日高市','三芳町','上里町','吉見町','宮代町','小川町','川島町','幸手市','本庄市','杉戸町','松伏町','毛呂山町','滑川町','鳩山町','神川町','皆野町','長瀞町','嵐山町','寄居町']),
+    '千葉': new Set(['千葉市','船橋市','松戸市','市川市','柏市','市原市','八千代市','流山市','野田市','我孫子市','浦安市','習志野市','鎌ケ谷市','木更津市','君津市','袖ケ浦市','成田市','佐倉市','四街道市','印西市','茂原市','八街市','東金市','山武市','大網白里市','富津市','富里市','旭市','白井市','酒々井町','香取市','銚子市','いすみ市','栄町','芝山町','館山市']),
+    '東京': new Set(['千代田区','中央区','港区','新宿区','文京区','台東区','墨田区','江東区','品川区','目黒区','大田区','世田谷区','渋谷区','中野区','杉並区','豊島区','北区','荒川区','板橋区','練馬区','足立区','葛飾区','江戸川区','八王子市','立川市','武蔵野市','三鷹市','青梅市','府中市','昭島市','調布市','町田市','小金井市','小平市','日野市','東村山市','国分寺市','国立市','福生市','狛江市','東大和市','清瀬市','東久留米市','武蔵村山市','多摩市','稲城市','羽村市','あきる野市','西東京市','日の出町','瑞穂町']),
+    '神奈川': new Set(['横浜市','川崎市','相模原市','藤沢市','横須賀市','平塚市','茅ヶ崎市','厚木市','大和市','海老名市','座間市','小田原市','秦野市','伊勢原市','綾瀬市','鎌倉市','逗子市','三浦市','寒川町','中井町','二宮町','南足柄市','大井町','大磯町','愛川町','松田町','湯河原町','葉山町','開成町','箱根町']),
+    '新潟': new Set(['新潟市','長岡市','上越市','三条市','新発田市','柏崎市','妙高市','燕市']),
+    '富山': new Set(['富山市','高岡市','砺波市','射水市','黒部市','立山町']),
+    '石川': new Set(['金沢市','白山市','野々市市','加賀市','内灘町','小松市','能美市']),
+    '福井': new Set(['福井市','敦賀市','越前市','鯖江市','坂井市','永平寺町']),
+    '山梨': new Set(['甲府市','中央市','南アルプス市','富士吉田市','山中湖村','山梨市','昭和町','甲州市','甲斐市','笛吹市','韮崎市','北杜市']),
+    '長野': new Set(['長野市','松本市','上田市','下諏訪町','中野市','佐久市','千曲市','塩尻市','安曇野市','小諸市','茅野市','軽井沢町','飯田市','須坂市','御代田町','高森町']),
+    '岐阜': new Set(['岐阜市','大垣市','多治見市','各務原市','可児市','美濃加茂市','関市','瑞浪市','土岐市','中津川市','恵那市','北方町','垂井町','岐南町','本巣市','瑞穂市','笠松町','羽島市','安八町','池田町','海津市','御嵩町','大野町','坂祝町','高山市','山県市','養老町']),
+    '静岡': new Set(['静岡市','浜松市','沼津市','富士市','磐田市','焼津市','藤枝市','三島市','富士宮市','掛川市','御殿場市','袋井市','裾野市','湖西市','伊東市','伊豆の国市','函南町','島田市','清水町','牧之原市','菊川市','長泉町','吉田町']),
+    '愛知': new Set(['名古屋市','豊田市','一宮市','岡崎市','豊橋市','春日井市','安城市','刈谷市','豊川市','西尾市','小牧市','稲沢市','瀬戸市','半田市','東海市','江南市','大府市','知多市','日進市','あま市','長久手市','尾張旭市','蒲郡市','犬山市','岩倉市','清須市','北名古屋市','豊明市','知立市','碧南市','高浜市','蟹江町','東郷町','扶桑町','大治町','大口町','常滑市','幸田町','弥富市','東浦町','武豊町','津島市','豊山町','阿久比町','美浜町','飛島村','田原市']),
+    '三重': new Set(['津市','四日市市','鈴鹿市','松阪市','桑名市','名張市','伊賀市','伊勢市','いなべ市','亀山市','川越町','明和町','菰野町','朝日町','木曽岬町','多気町','玉城町','東員町']),
+    '滋賀': new Set(['大津市','草津市','長浜市','彦根市','東近江市','近江八幡市','守山市','栗東市','甲賀市','湖南市','野洲市','豊郷町']),
+    '京都': new Set(['京都市','宇治市','長岡京市','向日市','亀岡市','城陽市','木津川市','八幡市','京田辺市','福知山市','舞鶴市','綾部市','久御山町','大山崎町','精華町']),
+    '大阪': new Set(['大阪市','堺市','東大阪市','枚方市','豊中市','吹田市','高槻市','茨木市','八尾市','寝屋川市','岸和田市','和泉市','守口市','門真市','箕面市','大東市','松原市','富田林市','河内長野市','摂津市','羽曳野市','池田市','泉佐野市','貝塚市','交野市','柏原市','藤井寺市','泉大津市','高石市','四條畷市','阪南市','泉南市','大阪狭山市','島本町','忠岡町','熊取町','太子町','河南町','田尻町','岬町']),
+    '兵庫': new Set(['神戸市','姫路市','西宮市','尼崎市','明石市','加古川市','宝塚市','伊丹市','川西市','三田市','芦屋市','高砂市','豊岡市','たつの市','加東市','太子町','播磨町','福崎町','稲美町','西脇市','小野市']),
+    '奈良': new Set(['奈良市','橿原市','生駒市','大和郡山市','香芝市','大和高田市','天理市','桜井市','葛城市','御所市','広陵町','河合町','王寺町','田原本町','安堵町','斑鳩町','三郷町']),
+    '和歌山': new Set(['和歌山市','田辺市','岩出市','御坊市','橋本市','海南市','上富田町']),
+    '鳥取': new Set(['鳥取市','米子市','境港市','日吉津村']),
+    '島根': new Set(['松江市','出雲市']),
+    '岡山': new Set(['岡山市','倉敷市','津山市','総社市','早島町','真庭市']),
+    '広島': new Set(['広島市','福山市','呉市','東広島市','尾道市','廿日市市','三原市','府中町','海田町','熊野町','三次市','坂町']),
+    '山口': new Set(['下関市','山口市','宇部市','周南市','下松市','岩国市','防府市','柳井市']),
+    '徳島': new Set(['徳島市','阿南市','松茂町','藍住町','石井町','北島町','小松島市','鳴門市']),
+    '香川': new Set(['高松市','丸亀市','観音寺市','三豊市','さぬき市','坂出市','宇多津町','三木町','善通寺市']),
+    '愛媛': new Set(['松山市','今治市','新居浜市','西条市','伊予市','四国中央市','東温市','松前町','砥部町']),
+    '高知': new Set(['高知市','南国市','土佐市']),
+    '福岡': new Set(['福岡市','北九州市','久留米市','飯塚市','大牟田市','春日市','筑紫野市','大野城市','太宰府市','糸島市','宗像市','福津市','那珂川市','志免町','粕屋町','新宮町','柳川市','みやま市','八女市','筑後市','直方市','行橋市','田川市','中間市','久山町','宇美町','小郡市','水巻町','筑前町','篠栗町','苅田町','須恵町','朝倉市','芦屋町','みやこ町','宮若市','岡垣町','大川市','遠賀町','大刀洗町','吉富町','古賀市']),
+    '佐賀': new Set(['佐賀市','唐津市','鳥栖市','伊万里市','基山町','みやき町','小城市','武雄市','吉野ヶ里町']),
+    '長崎': new Set(['長崎市','佐世保市','諫早市','大村市','時津町','長与町']),
+    '熊本': new Set(['熊本市','八代市','合志市','菊陽町','嘉島町','大津町','天草市','益城町','荒尾市','人吉市','御船町']),
+    '大分': new Set(['大分市','別府市','中津市','日田市','臼杵市']),
+    '宮崎': new Set(['宮崎市','都城市','延岡市','日向市','高鍋町','三股町']),
+    '鹿児島': new Set(['鹿児島市','霧島市','奄美市','薩摩川内市','姶良市','鹿屋市','出水市','肝付町']),
+    '沖縄': new Set(['那覇市','浦添市','宜野湾市','沖縄市','豊見城市','糸満市','南城市','名護市','うるま市','宮古島市','石垣市','北谷町','西原町','南風原町','読谷村','中城村','北中城村','与那原町','嘉手納町','八重瀬町','恩納村','金武町']),
+  };
+
+  // Uberエリアかどうか判定
+  function isUberArea(prefName: string, cityName: string): boolean {
+    const cities = UBER_AREA[prefName];
+    if (!cities) return false;
+    if (cities.has(cityName)) return true;
+    // 「名古屋市中区」→「名古屋市」で部分マッチ
+    for (const c of cities) {
+      if (cityName.startsWith(c) || c.startsWith(cityName)) return true;
+    }
+    return false;
+  }
+
+  // ===== データ（ユーザー投稿のみ） =====
+  const DEMO: any[] = [];
+
+  const V_LABEL: Record<string,string> = {
+    walk_bicycle:'自転車&徒歩', moped50:'原付(50cc)', motorcycle:'バイク(51cc〜)', kei_car:'軽自動車',
+    // 旧キー互換
+    bicycle:'自転車', moped:'原付', bike:'バイク', car:'車',
+  };
+
+  // ワンタイムリセット: 旧デモデータ＋テストデータをクリア
+  if (!localStorage.getItem('uber_data_reset_v2')) {
+    localStorage.removeItem('uber_data');
+    localStorage.setItem('uber_data_reset_v2', '1');
+  }
+
+  // ===== フィルター状態 =====
+  let filterDay = 'all';     // 'all' | 'mon' | 'tue' | ...
+  let filterVehicle = 'all'; // 'all' | 'bicycle' | 'moped' | 'bike' | 'car'
+
+  function getAllData() {
+    let saved: any[] = [];
+    try { saved = JSON.parse(localStorage.getItem('uber_data') ?? '[]'); } catch {}
+    let data = [...DEMO, ...saved];
+    if (filterDay !== 'all') {
+      data = data.filter(d => d.dayOfWeek === filterDay || d.dayType === filterDay);
+    }
+    if (filterVehicle !== 'all') {
+      data = data.filter(d => d.vehicle === filterVehicle);
+    }
+    return data;
+  }
+
+  // ===== 都道府県レベル集計 =====
+  function aggregatePref(): Map<string, {avg:number; count:number; vehicles:string[]; cities:string[]}> {
+    const all = getAllData();
+    const map = new Map<string, {total:number; count:number; v:Set<string>; c:Set<string>}>();
+    for (const d of all) {
+      if (!d.prefecture) continue;
+      const key = stripSuffix(d.prefecture);
+      if (!map.has(key)) map.set(key, {total:0, count:0, v:new Set(), c:new Set()});
+      const r = d.hourlyRate ?? (d.hours > 0 ? Math.round(d.earnings / d.hours) : 0);
+      const e = map.get(key)!;
+      e.total += r; e.count += 1;
+      if (d.vehicle) e.v.add(d.vehicle);
+      if (d.city)    e.c.add(d.city);
+    }
+    const result = new Map<string, {avg:number; count:number; vehicles:string[]; cities:string[]}>();
+    for (const [key, v] of map) {
+      result.set(key, {
+        avg: Math.round(v.total / v.count), count: v.count,
+        vehicles: [...v.v].map(x => V_LABEL[x] ?? x), cities: [...v.c],
+      });
+    }
+    return result;
+  }
+
+  // ===== 市区町村レベル集計 =====
+  function aggregateCity(prefName: string): Map<string, {avg:number; count:number; vehicles:string[]; avgBase:number; avgPromo:number}> {
+    const all = getAllData();
+    const normalPref = stripSuffix(prefName);
+    const map = new Map<string, {total:number; count:number; v:Set<string>; baseSum:number; promoSum:number; breakdownCount:number}>();
+    for (const d of all) {
+      if (!d.city) continue;
+      const dp = stripSuffix(d.prefecture || '');
+      if (dp !== normalPref) continue;
+      const key = d.city;
+      if (!map.has(key)) map.set(key, {total:0, count:0, v:new Set(), baseSum:0, promoSum:0, breakdownCount:0});
+      const r = d.hourlyRate ?? (d.hours > 0 ? Math.round(d.earnings / d.hours) : 0);
+      const e = map.get(key)!;
+      e.total += r; e.count += 1;
+      if (d.vehicle) e.v.add(d.vehicle);
+      if (d.baseFare || d.promotion) {
+        e.baseSum += (d.baseFare || 0);
+        e.promoSum += (d.promotion || 0);
+        e.breakdownCount += 1;
+      }
+    }
+    const result = new Map<string, {avg:number; count:number; vehicles:string[]; avgBase:number; avgPromo:number}>();
+    for (const [key, v] of map) {
+      result.set(key, {
+        avg: Math.round(v.total / v.count), count: v.count,
+        vehicles: [...v.v].map(x => V_LABEL[x] ?? x),
+        avgBase: v.breakdownCount > 0 ? Math.round(v.baseSum / v.breakdownCount) : 0,
+        avgPromo: v.breakdownCount > 0 ? Math.round(v.promoSum / v.breakdownCount) : 0,
+      });
+    }
+    return result;
+  }
+
+  // ===== スクリプト読み込み =====
+  function loadScript(src: string, globalName: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if ((window as any)[globalName]) { resolve(); return; }
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) {
+        const poll = () => { if ((window as any)[globalName]) resolve(); else setTimeout(poll, 50); };
+        poll(); return;
+      }
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => {
+        const poll = () => { if ((window as any)[globalName]) resolve(); else setTimeout(poll, 50); };
+        poll();
+      };
+      s.onerror = () => reject(new Error(`Script load failed: ${src}`));
+      document.head.appendChild(s);
+    });
+  }
+
+  // ===== グローバル =====
+  let d3: any, topojson: any, zoom: any, svg: any, g: any, pathFn: any;
+  let activePref: string | null = null;
+  let resettingToPref = false; // 都道府県モードへの復帰中フラグ（自動ドリル防止）
+  const cityCache = new Map<string, any>();
+
+  // ===== 市区町村TopoJSON読み込み =====
+  async function loadCityTopo(prefCode: string): Promise<any> {
+    if (cityCache.has(prefCode)) return cityCache.get(prefCode);
+    const urls = [
+      `https://cdn.jsdelivr.net/gh/smartnews-smri/japan-topography@main/data/municipality/topojson/s0010/N03-21_${prefCode}_210101.json`,
+      `https://raw.githubusercontent.com/smartnews-smri/japan-topography/main/data/municipality/topojson/s0010/N03-21_${prefCode}_210101.json`,
+    ];
+    let lastErr: any;
+    for (const url of urls) {
+      try {
+        console.log('[map] loading:', url);
+        const data = await d3.json(url);
+        if (data && data.objects) {
+          console.log('[map] loaded OK, objects:', Object.keys(data.objects));
+          cityCache.set(prefCode, data);
+          return data;
+        }
+      } catch (e) { lastErr = e; console.warn('[map] failed:', url, e); }
+    }
+    throw lastErr || new Error('TopoJSON取得失敗');
+  }
+
+  // ===== TopoJSONの市区町村名取得 =====
+  function getCityName(props: any): string {
+    const gun = props.N03_003 || '';
+    const city = props.N03_004 || '';
+    if (gun && city) return gun + city;
+    return city || gun || '';
+  }
+
+  // ===== 市区町村データとマッチング =====
+  function matchCityRate(props: any, cityRates: Map<string, any>): any {
+    const name = getCityName(props);
+    if (cityRates.has(name)) return cityRates.get(name);
+    const short = props.N03_004 || '';
+    if (short && cityRates.has(short)) return cityRates.get(short);
+    return undefined;
+  }
+
+  // ===== 地図構築 =====
+  function buildMap(prefData: any) {
+    const wrap = document.getElementById('map-wrap')!;
+    const W = wrap.offsetWidth, H = wrap.offsetHeight;
+
+    svg = d3.select('#jmap');
+    svg.append('rect').attr('x',0).attr('y',0).attr('width',W).attr('height',H).attr('fill','#bfdbfe');
+
+    const proj = d3.geoMercator().center([137.0, 37.5]).scale(1600).translate([W/2, H/2]);
+    pathFn = d3.geoPath().projection(proj);
+    g = svg.append('g');
+    const prefRates = aggregatePref();
+
+    // DEBUG: 最初のfeatureのプロパティを出力
+    if (prefData.features.length > 0) {
+      console.log('[map] GeoJSON sample properties:', JSON.stringify(prefData.features[0].properties));
+    }
+
+    // ── 都道府県ポリゴン ──
+    g.append('g').attr('class','pref-layer')
+      .selectAll('path')
+      .data(prefData.features)
+      .enter().append('path')
+      .attr('d', pathFn)
+      .attr('fill', (d: any) => {
+        const jaName = getPrefNameJa(d.properties);
+        if (!UBER_AREA[jaName]) return '#1e1e1e'; // Uber非対応県は黒
+        const r = prefRates.get(jaName);
+        return r ? rateColor(r.avg) : '#e2e8f0';
+      })
+      .attr('stroke', '#94a3b8')
+      .attr('stroke-width', 0.6)
+      .style('cursor', 'pointer')
+      .on('mouseover', function(this: Element) { d3.select(this).attr('opacity', 0.75); })
+      .on('mouseout',  function(this: Element) { d3.select(this).attr('opacity', 1); })
+      .on('click', function(event: MouseEvent, d: any) {
+        event.stopPropagation();
+        const jaName = getPrefNameJa(d.properties);
+        console.log('[map] clicked prefecture:', jaName, 'props:', d.properties);
+        if (activePref && activePref === jaName) return; // 同じ県なら無視
+        if (activePref) {
+          // 別の県 → 市区町村をクリアして新しい県にドリルダウン
+          g.select('.city-layer').selectAll('*').remove();
+          g.select('.city-labels').selectAll('*').remove();
+          activePref = null;
+        }
+        drillDown(jaName, d);
+      });
+
+    // ── 都道府県名ラベル（離島補正付き）──
+    const labelProj = d3.geoMercator().center([137.0, 37.5]).scale(1600).translate([W/2, H/2]);
+    g.append('g').attr('class','pref-labels')
+      .selectAll('text')
+      .data(prefData.features)
+      .enter().append('text')
+      .attr('x', (d: any) => {
+        const name = getPrefNameJa(d.properties);
+        if (PREF_LABEL_POS[name]) return labelProj(PREF_LABEL_POS[name])[0];
+        try { return pathFn.centroid(d)[0]; } catch { return 0; }
+      })
+      .attr('y', (d: any) => {
+        const name = getPrefNameJa(d.properties);
+        if (PREF_LABEL_POS[name]) return labelProj(PREF_LABEL_POS[name])[1];
+        try { return pathFn.centroid(d)[1] + 2; } catch { return 0; }
+      })
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '5px')
+      .attr('font-family', 'sans-serif')
+      .attr('fill', '#1e293b')
+      .attr('pointer-events', 'none')
+      .attr('opacity', 0)
+      .text((d: any) => getPrefNameJa(d.properties));
+
+    // ── 市区町村レイヤー（空で初期化） ──
+    g.append('g').attr('class','city-layer');
+    g.append('g').attr('class','city-labels');
+
+    // ── ズーム制御（Google Map風ラベル）──
+    let zoomTimer: any = null;
+    zoom = d3.zoom().scaleExtent([0.8, 40])
+      .on('zoom', (event: any) => {
+        const k = event.transform.k;
+        g.attr('transform', event.transform);
+        g.select('.pref-layer').selectAll('path').attr('stroke-width', 0.6 / k);
+        g.select('.city-layer').selectAll('path').attr('stroke-width', 0.3 / k);
+
+        // 都道府県名ラベル: 画面上11px一定、k<1.8 or k>10で非表示
+        const prefOpacity = (!activePref && k >= 1.8 && k <= 10) ? 1 : 0;
+        g.select('.pref-labels').selectAll('text')
+          .attr('opacity', prefOpacity)
+          .attr('font-size', `${11 / k}px`);
+
+        // 市区町村名ラベル: 画面上10px一定、k=10〜60で表示
+        const cityOpacity = (activePref && k >= 10 && k <= 60) ? Math.min(1, (k - 10) / 2) : 0;
+        g.select('.city-labels').selectAll('text')
+          .attr('opacity', cityOpacity)
+          .attr('font-size', `${10 / k}px`);
+
+        // ズーム時の自動ドリルダウン（k>=6で中央の都道府県を展開）
+        // resettingToPref中はトランジションでk>=6を通過しても無視
+        if (!activePref && !resettingToPref && k >= 6) {
+          clearTimeout(zoomTimer);
+          zoomTimer = setTimeout(() => autoDrillByCenter(event.transform), 400);
+        }
+      });
+
+    svg.call(zoom);
+    svg.on('mousedown', () => svg.style('cursor','grabbing'))
+       .on('mouseup',   () => svg.style('cursor','grab'));
+
+    document.getElementById('btn-in')?.addEventListener('click', () =>
+      svg.transition().duration(300).call(zoom.scaleBy, 1.6));
+    document.getElementById('btn-out')?.addEventListener('click', () =>
+      svg.transition().duration(300).call(zoom.scaleBy, 0.625));
+
+    // ナビ: 都道府県ボタンで戻る
+    document.getElementById('map-btn-pref')?.addEventListener('click', () => {
+      if (activePref) resetToPrefs();
+    });
+  }
+
+  // ===== 都道府県クリック → 市区町村ドリルダウン =====
+  async function drillDown(prefName: string, prefFeature: any) {
+    const code = PREF_CODE[prefName];
+    console.log('[map] drillDown:', prefName, '→ code:', code);
+    if (!code) {
+      console.error('[map] 都道府県コード見つからず:', prefName);
+      return;
+    }
+
+    document.getElementById('city-loading')!.classList.remove('hidden');
+
+    // ナビボタン: 市区町村タブをアクティブに
+    const btnPref = document.getElementById('map-btn-pref')!;
+    const btnCity = document.getElementById('map-btn-city')!;
+    btnPref.className = 'bg-white/95 text-gray-700 backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-gray-200 transition-colors hover:bg-gray-50 cursor-pointer';
+    btnCity.className = 'bg-blue-600 text-white backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-blue-600 transition-colors';
+    btnCity.textContent = `📍 ${prefName}`;
+    (btnCity as HTMLButtonElement).disabled = false;
+
+    try {
+      // topojson-client
+      if (!topojson) {
+        await loadScript('https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js', 'topojson');
+        topojson = (window as any).topojson;
+      }
+      if (!topojson) throw new Error('topojson-client 読み込み失敗');
+
+      // 市区町村TopoJSON取得
+      const topo = await loadCityTopo(code);
+      const objKey = Object.keys(topo.objects)[0];
+      const geoData = topojson.feature(topo, topo.objects[objKey]);
+      console.log('[map] municipality features:', geoData.features.length,
+                  'sample props:', geoData.features[0]?.properties);
+
+      activePref = prefName;
+      const cityRates = aggregateCity(prefName);
+
+      // データのある市区町村名セット
+      const dataNames = new Set(cityRates.keys());
+      console.log('[map] cities with data:', [...dataNames]);
+
+      // 離島除外: 本土エリア内のfeatureのみ抽出
+      const mainlandFeatures = geoData.features.filter((d: any) => {
+        try {
+          const c = d3.geoCentroid(d); // [lng, lat]
+          if (!c || !isFinite(c[0])) return false;
+          return c[1] >= MAINLAND_LAT[0] && c[1] <= MAINLAND_LAT[1]
+              && c[0] >= MAINLAND_LNG[0] && c[0] <= MAINLAND_LNG[1];
+        } catch { return false; }
+      });
+
+      // データのある市区町村にマッチするfeature
+      const matchedFeatures = mainlandFeatures.filter((d: any) => {
+        return matchCityRate(d.properties, cityRates) !== undefined;
+      });
+
+      console.log('[map] matched:', matchedFeatures.length, '/ mainland:', mainlandFeatures.length);
+
+      // 都道府県レイヤーを薄く
+      g.select('.pref-layer').selectAll('path')
+        .transition().duration(300)
+        .attr('fill-opacity', 0.35)
+        .attr('stroke-opacity', 0.5);
+      g.select('.pref-labels').selectAll('text').attr('opacity', 0);
+
+      // 市区町村ポリゴン描画（全市区町村を1レイヤーで）
+      const cityLayer = g.select('.city-layer');
+      cityLayer.selectAll('*').remove();
+
+      cityLayer.selectAll('path')
+        .data(mainlandFeatures)
+        .enter().append('path')
+        .attr('d', pathFn)
+        .attr('fill', (d: any) => {
+          const name = getCityName(d.properties);
+          if (!isUberArea(prefName, name)) return '#1e1e1e'; // Uber非対応は黒
+          const r = matchCityRate(d.properties, cityRates);
+          return r ? rateColor(r.avg) : '#e2e8f0';
+        })
+        .attr('stroke', '#94a3b8')
+        .attr('stroke-width', 0.25)
+        .attr('fill-opacity', 0)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(this: Element) { d3.select(this).attr('fill-opacity', 0.6); })
+        .on('mouseout',  function(this: Element) { d3.select(this).attr('fill-opacity', 0.9); })
+        .on('click', (event: MouseEvent, d: any) => {
+          event.stopPropagation();
+          const name = getCityName(d.properties);
+          const r = matchCityRate(d.properties, cityRates);
+          showPopup(event, name, prefName,
+            r ? r.avg : 0, r ? r.count : 0,
+            r ? r.vehicles.join('・') : '',
+            r ? r.avgBase : 0, r ? r.avgPromo : 0);
+        })
+        .transition().duration(400)
+        .attr('fill-opacity', 0.9);
+
+      // 市区町村名ラベル — 全市区町村、重複除去
+      const labelLayer = g.select('.city-labels');
+      labelLayer.selectAll('*').remove();
+
+      const seen = new Set<string>();
+      const labelFeatures = mainlandFeatures.filter((d: any) => {
+        try {
+          const c = pathFn.centroid(d);
+          if (!c || !isFinite(c[0]) || !isFinite(c[1])) return false;
+          const name = getCityName(d.properties);
+          if (!name || seen.has(name)) return false;
+          seen.add(name);
+          return true;
+        } catch { return false; }
+      });
+
+      // 現在のズームレベルに合わせたフォントサイズ
+      const currentK = d3.zoomTransform(svg.node()).k || 1;
+      labelLayer.selectAll('text')
+        .data(labelFeatures)
+        .enter().append('text')
+        .attr('x', (d: any) => pathFn.centroid(d)[0])
+        .attr('y', (d: any) => pathFn.centroid(d)[1])
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', `${10 / currentK}px`)
+        .attr('font-family', 'sans-serif')
+        .attr('font-weight', '500')
+        .attr('fill', '#1e293b')
+        .attr('pointer-events', 'none')
+        .attr('opacity', 0)
+        .text((d: any) => {
+          const gun = d.properties.N03_003 || '';
+          const city = d.properties.N03_004 || '';
+          // N03_003（郡/市）とN03_004（町村/区）が両方あれば町村/区名だけ表示
+          // 例: 西春日井郡+豊山町→豊山町、名古屋市+中区→中区
+          // N03_004だけの場合はそのまま（蒲郡市、郡山市、大和郡山市 等）
+          if (gun && city) return city;
+          return city || gun;
+        })
+        .transition().delay(300).duration(300)
+        .attr('opacity', 1);
+
+      // ズームフィット: 内陸の密集部分に合わせる（離島を除外）
+      const wrap = document.getElementById('map-wrap')!;
+      const W = wrap.offsetWidth, H = wrap.offsetHeight;
+      let fitBounds: [[number,number],[number,number]];
+
+      // 各featureのcentroid(SVG座標)を集めてIQRで外れ値を除外
+      const centroids: {x: number; y: number; f: any}[] = [];
+      for (const f of mainlandFeatures) {
+        try {
+          const c = pathFn.centroid(f);
+          if (c && isFinite(c[0]) && isFinite(c[1])) centroids.push({x: c[0], y: c[1], f});
+        } catch {}
+      }
+
+      if (centroids.length > 4) {
+        // X座標とY座標それぞれでIQRフィルタ
+        const xs = centroids.map(c => c.x).sort((a,b) => a - b);
+        const ys = centroids.map(c => c.y).sort((a,b) => a - b);
+        const q = (arr: number[], p: number) => arr[Math.floor(arr.length * p)];
+        const iqrX = q(xs, 0.75) - q(xs, 0.25);
+        const iqrY = q(ys, 0.75) - q(ys, 0.25);
+        const loX = q(xs, 0.25) - iqrX * 1.5;
+        const hiX = q(xs, 0.75) + iqrX * 1.5;
+        const loY = q(ys, 0.25) - iqrY * 1.5;
+        const hiY = q(ys, 0.75) + iqrY * 1.5;
+        const inliers = centroids.filter(c => c.x >= loX && c.x <= hiX && c.y >= loY && c.y <= hiY);
+        const fitTarget = inliers.length > 0 ? inliers.map(c => c.f) : mainlandFeatures;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const f of fitTarget) {
+          try {
+            const b = pathFn.bounds(f);
+            if (b[0][0] < minX) minX = b[0][0];
+            if (b[0][1] < minY) minY = b[0][1];
+            if (b[1][0] > maxX) maxX = b[1][0];
+            if (b[1][1] > maxY) maxY = b[1][1];
+          } catch {}
+        }
+        const padX = (maxX - minX) * 0.15;
+        const padY = (maxY - minY) * 0.15;
+        fitBounds = [[minX - padX, minY - padY], [maxX + padX, maxY + padY]];
+      } else if (centroids.length > 0) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const f of mainlandFeatures) {
+          try {
+            const b = pathFn.bounds(f);
+            if (b[0][0] < minX) minX = b[0][0];
+            if (b[0][1] < minY) minY = b[0][1];
+            if (b[1][0] > maxX) maxX = b[1][0];
+            if (b[1][1] > maxY) maxY = b[1][1];
+          } catch {}
+        }
+        const padX = (maxX - minX) * 0.15;
+        const padY = (maxY - minY) * 0.15;
+        fitBounds = [[minX - padX, minY - padY], [maxX + padX, maxY + padY]];
+      } else {
+        fitBounds = pathFn.bounds(prefFeature);
+      }
+
+      const dx = fitBounds[1][0] - fitBounds[0][0];
+      const dy = fitBounds[1][1] - fitBounds[0][1];
+      const scale = 0.85 / Math.max(dx / W, dy / H);
+      const cx = (fitBounds[0][0] + fitBounds[1][0]) / 2;
+      const cy = (fitBounds[0][1] + fitBounds[1][1]) / 2;
+
+      // 市区町村モード中のズームアウト制限: フィットスケールの8割まで
+      const minScale = scale * 0.8;
+      zoom.scaleExtent([minScale, 40]);
+
+      svg.transition().duration(600).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(W / 2 - scale * cx, H / 2 - scale * cy).scale(scale)
+      );
+
+    } catch (err) {
+      console.error('[map] drillDown error:', err);
+      g.select('.pref-layer').selectAll('path')
+        .transition().duration(200)
+        .attr('fill-opacity', 1).attr('stroke-opacity', 1);
+      // エラー時はナビを都道府県モードに戻す
+      btnPref.className = 'bg-blue-600 text-white backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-blue-600 transition-colors';
+      btnCity.className = 'bg-white/95 text-gray-400 backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-gray-200 transition-colors cursor-not-allowed';
+      btnCity.textContent = '📍 市区町村';
+      (btnCity as HTMLButtonElement).disabled = true;
+      activePref = null;
+    } finally {
+      document.getElementById('city-loading')!.classList.add('hidden');
+    }
+  }
+
+  // ===== ズーム時の自動ドリルダウン =====
+  function autoDrillByCenter(transform: any) {
+    if (activePref) return;
+    const wrap = document.getElementById('map-wrap')!;
+    const cx = (wrap.offsetWidth / 2 - transform.x) / transform.k;
+    const cy = (wrap.offsetHeight / 2 - transform.y) / transform.k;
+    // 画面中央に最も近い都道府県を探す
+    let bestDist = Infinity, bestFeature: any = null, bestName = '';
+    g.select('.pref-layer').selectAll('path').each(function(d: any) {
+      try {
+        const c = pathFn.centroid(d);
+        const dist = Math.hypot(c[0] - cx, c[1] - cy);
+        if (dist < bestDist) { bestDist = dist; bestFeature = d; bestName = getPrefNameJa(d.properties); }
+      } catch {}
+    });
+    if (bestName && bestFeature) {
+      drillDown(bestName, bestFeature);
+    }
+  }
+
+  // ===== 都道府県モードに戻る =====
+  function resetToPrefs() {
+    activePref = null;
+    resettingToPref = true; // ズームトランジション中の自動ドリル防止
+    zoom.scaleExtent([0.8, 40]); // 都道府県モード用の広いズーム範囲に復元
+    g.select('.city-layer').selectAll('*').remove();
+    g.select('.city-labels').selectAll('*').remove();
+    const prefRates = aggregatePref();
+    g.select('.pref-layer').selectAll('path')
+      .transition().duration(300)
+      .attr('fill-opacity', 1)
+      .attr('stroke-opacity', 1)
+      .attr('fill', (d: any) => {
+        const jaName = getPrefNameJa(d.properties);
+        if (!UBER_AREA[jaName]) return '#1e1e1e';
+        const r = prefRates.get(jaName);
+        return r ? rateColor(r.avg) : '#e2e8f0';
+      });
+    svg.transition().duration(400)
+      .call(zoom.transform, d3.zoomIdentity)
+      .on('end', () => { resettingToPref = false; }); // トランジション完了後にフラグ解除
+
+    // ナビボタン: 都道府県タブをアクティブに
+    const btnP = document.getElementById('map-btn-pref')!;
+    const btnC = document.getElementById('map-btn-city')!;
+    btnP.className = 'bg-blue-600 text-white backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-blue-600 transition-colors';
+    btnC.className = 'bg-white/95 text-gray-400 backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-gray-200 transition-colors cursor-not-allowed';
+    btnC.textContent = '📍 市区町村';
+    (btnC as HTMLButtonElement).disabled = true;
+  }
+
+  // ===== ポップアップ =====
+  function showPopup(
+    event: MouseEvent, name: string, pref: string,
+    avg: number, count: number, vehicles: string,
+    avgBase?: number, avgPromo?: number
+  ) {
+    const popup = document.getElementById('map-popup')!;
+    const rect  = document.getElementById('map-wrap')!.getBoundingClientRect();
+    popup.style.left = `${event.clientX - rect.left}px`;
+    popup.style.top  = `${event.clientY - rect.top}px`;
+    document.getElementById('pp-city')!.textContent = name || '（名称不明）';
+    document.getElementById('pp-pref')!.textContent = pref || '';
+    const rEl = document.getElementById('pp-rate')!;
+    const tEl = document.getElementById('pp-tier')!;
+    const bdEl = document.getElementById('pp-breakdown')!;
+    if (avg > 0) {
+      const col = rateColor(avg);
+      rEl.textContent = `¥${avg.toLocaleString()}/h`;
+      rEl.style.color = col;
+      tEl.textContent = rateLabel(avg);
+      tEl.style.background = col + '22';
+      tEl.style.color = col;
+      document.getElementById('pp-count')!.textContent   = `投稿数: ${count}件`;
+      document.getElementById('pp-vehicle')!.textContent = vehicles ? `乗り物: ${vehicles}` : '';
+      // 内訳表示
+      if (avgBase || avgPromo) {
+        document.getElementById('pp-base')!.textContent  = `¥${(avgBase || 0).toLocaleString()}`;
+        document.getElementById('pp-promo')!.textContent = `¥${(avgPromo || 0).toLocaleString()}`;
+        bdEl.classList.remove('hidden');
+      } else {
+        bdEl.classList.add('hidden');
+      }
+    } else {
+      rEl.textContent = 'データなし'; rEl.style.color = '#94a3b8';
+      tEl.textContent = '';
+      document.getElementById('pp-count')!.textContent   = '投稿がありません';
+      document.getElementById('pp-vehicle')!.textContent = '';
+      bdEl.classList.add('hidden');
+    }
+    popup.classList.remove('hidden');
+    event.stopPropagation();
+  }
+  document.getElementById('map-wrap')?.addEventListener('click', () =>
+    document.getElementById('map-popup')?.classList.add('hidden'));
+
+  // ===== マップ色を再描画 =====
+  function refreshMapColors() {
+    if (!d3 || !g) return;
+    if (activePref) {
+      const cityRates = aggregateCity(activePref);
+      g.select('.city-layer').selectAll('path')
+        .transition().duration(300)
+        .attr('fill', (d: any) => {
+          const name = getCityName(d.properties);
+          if (!isUberArea(activePref, name)) return '#1e1e1e';
+          const r = matchCityRate(d.properties, cityRates);
+          return r ? rateColor(r.avg) : '#e2e8f0';
+        });
+    } else {
+      const prefRates = aggregatePref();
+      g.select('.pref-layer').selectAll('path')
+        .transition().duration(300)
+        .attr('fill', (d: any) => {
+          const jaName = getPrefNameJa(d.properties);
+          if (!UBER_AREA[jaName]) return '#1e1e1e';
+          const r = prefRates.get(jaName);
+          return r ? rateColor(r.avg) : '#e2e8f0';
+        });
+    }
+  }
+
+  // ===== データ更新 =====
+  window.addEventListener('uber-data-updated', () => refreshMapColors());
+
+  // ===== フィルターボタン =====
+  function setupFilterButtons() {
+    const activeClass = 'bg-blue-600 text-white';
+    const inactiveClass = 'bg-gray-100 text-gray-500 hover:bg-gray-200';
+
+    document.querySelectorAll('.map-day-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterDay = (btn as HTMLElement).dataset.day || 'all';
+        document.querySelectorAll('.map-day-btn').forEach(b => {
+          b.className = `map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold ${inactiveClass}`;
+        });
+        btn.className = `map-day-btn text-[10px] px-1.5 py-0.5 rounded font-bold ${activeClass}`;
+        refreshMapColors();
+      });
+    });
+
+    document.querySelectorAll('.map-veh-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterVehicle = (btn as HTMLElement).dataset.vehicle || 'all';
+        document.querySelectorAll('.map-veh-btn').forEach(b => {
+          b.className = `map-veh-btn text-[10px] px-1.5 py-0.5 rounded font-bold ${inactiveClass}`;
+        });
+        btn.className = `map-veh-btn text-[10px] px-1.5 py-0.5 rounded font-bold ${activeClass}`;
+        refreshMapColors();
+      });
+    });
+  }
+  setupFilterButtons();
+
+  // ===== 起動 =====
+  async function initMap() {
+    const setMsg = (t: string) => {
+      const el = document.getElementById('loading-msg');
+      if (el) el.textContent = t;
+    };
+    try {
+      setMsg('D3.js を読み込み中...');
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js', 'd3');
+      d3 = (window as any).d3;
+
+      setMsg('地図データを取得中...');
+      const PREF_URL = 'https://cdn.jsdelivr.net/gh/dataofjapan/land@master/japan.geojson';
+      const prefData = await d3.json(PREF_URL);
+
+      document.getElementById('map-loading')!.style.display = 'none';
+      buildMap(prefData);
+      console.log('[map] init complete');
+
+    } catch (err) {
+      console.error('[map] init error:', err);
+      const el = document.getElementById('map-loading')!;
+      el.innerHTML = `
+        <div class="text-center px-6">
+          <div class="text-3xl mb-2">⚠️</div>
+          <p class="text-sm text-slate-600 font-medium mb-1">地図データの取得に失敗しました</p>
+          <p class="text-xs text-slate-400 leading-relaxed">インターネット接続を確認してリロード</p>
+        </div>`;
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMap);
+  } else {
+    initMap();
+  }
+</script>

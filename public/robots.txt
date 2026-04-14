@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://your-blog.com/sitemap-index.xml

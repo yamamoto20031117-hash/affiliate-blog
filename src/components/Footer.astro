@@ -1,0 +1,65 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="bg-gray-900 text-gray-300 mt-16">
+  <div class="max-w-5xl mx-auto px-4 py-10">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-8">
+
+      <!-- ブログ情報 -->
+      <div class="col-span-2 sm:col-span-1">
+        <h3 class="text-white font-bold mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-primary-400" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          人生のライフハック
+        </h3>
+        <p class="text-sm leading-relaxed text-gray-400">
+          副業・節約・クレカ活用など、名古屋の大学生が実体験をもとに発信するライフハックブログ。
+        </p>
+      </div>
+
+      <!-- カテゴリ -->
+      <div>
+        <h4 class="text-white font-semibold text-sm mb-3">カテゴリ</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="/category/uber" class="hover:text-primary-400 transition-colors">🚗 Uber稼ぎ方</a></li>
+          <li><a href="/category/credit-card" class="hover:text-primary-400 transition-colors">💳 クレカ修行</a></li>
+          <li><a href="/category/tax" class="hover:text-primary-400 transition-colors">📊 扶養・税金</a></li>
+        </ul>
+      </div>
+
+      <!-- コンテンツ -->
+      <div>
+        <h4 class="text-white font-semibold text-sm mb-3">コンテンツ</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="/" class="hover:text-primary-400 transition-colors">新着記事</a></li>
+          <li><a href="/data" class="hover:text-primary-400 transition-colors">🗾 時給マップ</a></li>
+          <li><a href="/roadmap" class="hover:text-primary-400 transition-colors">📋 始め方</a></li>
+          <li><a href="/about" class="hover:text-primary-400 transition-colors">このブログについて</a></li>
+        </ul>
+      </div>
+
+      <!-- その他 -->
+      <div>
+        <h4 class="text-white font-semibold text-sm mb-3">その他</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="/privacy" class="hover:text-primary-400 transition-colors">プライバシーポリシー</a></li>
+          <li><a href="/disclaimer" class="hover:text-primary-400 transition-colors">免責事項</a></li>
+          <li><a href="/contact" class="hover:text-primary-400 transition-colors">お問い合わせ</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- アフィリエイト免責 -->
+    <div class="border-t border-gray-700 pt-6 mb-4">
+      <p class="text-xs text-gray-500 leading-relaxed">
+        本サイトはアフィリエイトプログラムに参加しています。記事内のリンクから商品を購入いただいた場合、当サイトに報酬が発生することがありますが、購入者の費用は増加しません。掲載情報は執筆時点のものです。最新情報は各サービス・商品の公式サイトをご確認ください。
+      </p>
+    </div>
+
+    <div class="text-center text-xs text-gray-500">
+      &copy; {year} 人生のライフハック. All rights reserved.
+    </div>
+  </div>
+</footer>

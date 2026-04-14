@@ -1,0 +1,1456 @@
+---
+// データ投稿フォーム（コンパクト版: スクショ + 地図 + 乗り物）
+---
+
+<style>
+  details[open] .details-arrow { transform: rotate(180deg); }
+</style>
+
+<div id="form-wrapper">
+
+  <!-- 成功メッセージ -->
+  <div id="success-msg" class="hidden bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
+    <div class="text-4xl mb-3">🎉</div>
+    <p class="font-bold text-green-800 text-lg mb-1">データを送信しました！</p>
+    <p id="success-sub" class="text-xs text-green-600 mb-4"></p>
+    <button id="reset-btn" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">
+      もう1件投稿する
+    </button>
+  </div>
+
+  <!-- メインフォーム -->
+  <form id="data-form" class="space-y-4">
+
+    <!-- STEP 1: スクリーンショット -->
+    <div class="bg-gradient-to-br from-violet-50 to-indigo-50 border border-violet-200 rounded-2xl p-4">
+      <p class="text-sm font-bold text-violet-800 mb-2">📸 今日のスクショをアップロード</p>
+      <p class="text-[10px] text-gray-500 mb-2">Uber Eatsアプリの売上画面を撮影してドロップ</p>
+
+      <!-- 正しいスクショの選び方 -->
+      <details class="mb-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs">
+        <summary class="cursor-pointer px-3 py-2 text-amber-700 font-semibold flex items-center gap-1.5 select-none">
+          <span>⚠️</span><span>どの画面を撮ればいい？</span>
+          <svg class="w-3.5 h-3.5 ml-auto transition-transform details-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div class="px-3 pb-3 space-y-2 text-[11px] leading-relaxed text-gray-700">
+          <div class="flex gap-2">
+            <div class="flex-1 bg-green-50 border border-green-300 rounded-lg p-2 text-center">
+              <div class="text-lg mb-1">✅</div>
+              <p class="font-bold text-green-700 text-[10px] mb-1">1日ごとの画面</p>
+              <p class="text-[9px] text-gray-500 leading-tight"><strong>1日分</strong>の売上・時間・<br/>乗車回数が表示された状態</p>
+            </div>
+            <div class="flex-1 bg-red-50 border border-red-300 rounded-lg p-2 text-center">
+              <div class="text-lg mb-1">❌</div>
+              <p class="font-bold text-red-700 text-[10px] mb-1">1週間まとめの画面</p>
+              <p class="text-[9px] text-gray-500 leading-tight">1週間の合計が表示された<br/>画面は曜日ごとのデータが<br/>取れないため使えません</p>
+            </div>
+          </div>
+          <p class="text-[10px] text-amber-600 bg-amber-100/60 rounded-lg px-2 py-1.5 leading-relaxed">
+            💡 <strong>売上画面の左上「<」ボタン</strong>で1日単位に切り替えられます。<strong>「◯月◯日」と1日の日付が表示</strong>されている画面をスクショしてください。
+          </p>
+        </div>
+      </details>
+
+      <div id="ocr-dropzone" class="border-2 border-dashed border-violet-300 rounded-xl p-6 text-center cursor-pointer hover:bg-violet-50 transition-colors">
+        <input type="file" id="ocr-file" accept="image/*" class="hidden" />
+        <div id="ocr-placeholder">
+          <div class="text-3xl mb-2">📷</div>
+          <p class="text-sm text-violet-600 font-semibold">タップまたはドラッグで画像を選択</p>
+          <p class="text-[10px] text-gray-400 mt-1">売上・時間・件数を自動で読み取ります</p>
+        </div>
+        <div id="ocr-preview-img" class="hidden">
+          <img id="ocr-thumb" class="max-h-40 mx-auto rounded-lg shadow-sm" />
+          <p class="text-[10px] text-violet-500 mt-2">別の画像を選択するにはタップ</p>
+        </div>
+      </div>
+
+      <!-- 処理中 -->
+      <div id="ocr-processing" class="hidden text-center py-4">
+        <p class="text-sm text-violet-600 font-semibold mb-2">🔍 画像を解析中...</p>
+        <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+          <div id="ocr-progress-bar" class="bg-violet-500 h-1.5 rounded-full transition-all duration-300" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- 解析結果 -->
+      <div id="ocr-result" class="hidden mt-3 space-y-3">
+        <p class="text-xs font-bold text-gray-700">📊 解析結果（修正可能）</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] text-gray-500">売り上げ総額</label>
+            <div class="relative">
+              <input type="number" id="ocr-earnings" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-right pr-6" />
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">円</span>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500">時給</label>
+            <div class="relative">
+              <input type="text" id="ocr-hourly" readonly class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-emerald-600 bg-emerald-50 text-right pr-6" />
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">/h</span>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500">正味の料金</label>
+            <div class="relative">
+              <input type="number" id="ocr-base-fare" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-right pr-6" />
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">円</span>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500">プロモーション</label>
+            <div class="relative">
+              <input type="number" id="ocr-promotion" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-right pr-6" />
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">円</span>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500">オンライン時間</label>
+            <div class="flex gap-1">
+              <div class="relative flex-1">
+                <input type="number" id="ocr-hours" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-right pr-5" />
+                <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">h</span>
+              </div>
+              <div class="relative flex-1">
+                <input type="number" id="ocr-minutes" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-right pr-5" />
+                <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">m</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500">配達件数</label>
+            <div class="relative">
+              <input type="number" id="ocr-deliveries" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-right pr-6" />
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">件</span>
+            </div>
+          </div>
+        </div>
+        <!-- 曜日セレクター -->
+        <div>
+          <label class="text-[10px] text-gray-500">配達した曜日（棒グラフで色の濃い日を選択）</label>
+          <div id="ocr-dow-buttons" class="flex gap-1 mt-1">
+            <button type="button" data-dow="mon" class="dow-btn flex-1 text-xs py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 transition-colors">月</button>
+            <button type="button" data-dow="tue" class="dow-btn flex-1 text-xs py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 transition-colors">火</button>
+            <button type="button" data-dow="wed" class="dow-btn flex-1 text-xs py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 transition-colors">水</button>
+            <button type="button" data-dow="thu" class="dow-btn flex-1 text-xs py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 transition-colors">木</button>
+            <button type="button" data-dow="fri" class="dow-btn flex-1 text-xs py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 transition-colors">金</button>
+            <button type="button" data-dow="sat" class="dow-btn flex-1 text-xs py-1.5 rounded-lg border border-gray-200 bg-white text-blue-600 hover:bg-blue-50 transition-colors">土</button>
+            <button type="button" data-dow="sun" class="dow-btn flex-1 text-xs py-1.5 rounded-lg border border-gray-200 bg-white text-red-500 hover:bg-red-50 transition-colors">日</button>
+          </div>
+          <input type="hidden" id="ocr-dow" value="" />
+        </div>
+      </div>
+
+      <!-- 週間画像警告 -->
+      <div id="ocr-weekly-warning" class="hidden mt-3 bg-amber-50 border border-amber-300 rounded-xl p-3">
+        <p class="text-sm font-bold text-amber-700">⚠️ 1週間まとめの画面です</p>
+        <p class="text-xs text-amber-600 mt-1">この画像は1週間の合計データのため、曜日ごとの正確なデータが取れません。</p>
+        <p class="text-xs text-amber-600 mt-0.5"><strong>1日分のデータ</strong>の画像をアップロードしてください。</p>
+      </div>
+
+      <p id="ocr-error" class="hidden text-xs text-red-500 text-center mt-2"></p>
+    </div>
+
+    <!-- STEP 2: 配達エリア -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm font-bold text-gray-700">🗺️ 配達エリア</p>
+        <span id="area-saved-badge" class="hidden text-[10px] text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">前回の設定を復元</span>
+      </div>
+
+      <!-- 選択中のエリアタグ -->
+      <div id="city-tags" class="flex flex-wrap gap-1.5 min-h-[32px] border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50 mb-2">
+        <span class="text-xs text-gray-400" id="city-tags-placeholder">地図からエリアを選んでください</span>
+      </div>
+
+      <!-- 地図ピッカー（常に表示） -->
+      <div id="picker-wrap" class="rounded-xl border border-gray-200 overflow-hidden relative" style="height:280px;background:#dbeafe;">
+        <svg id="picker-svg" style="width:100%;height:100%;display:block;cursor:pointer;"></svg>
+
+        <div id="picker-nav" class="absolute top-2 left-2 z-10 flex gap-1">
+          <button type="button" id="picker-btn-pref"
+            class="bg-blue-600 text-white backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-blue-600 transition-colors">
+            🗾 都道府県
+          </button>
+          <button type="button" id="picker-btn-city"
+            class="bg-white/95 text-gray-400 backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-gray-200 transition-colors cursor-not-allowed" disabled>
+            📍 市区町村
+          </button>
+        </div>
+
+        <div id="picker-loading" class="absolute inset-0 flex items-center justify-center bg-blue-50/80 backdrop-blur-sm">
+          <p class="text-sm text-slate-500">🗾 地図を読み込み中...</p>
+        </div>
+      </div>
+      <p id="picker-hint" class="text-[10px] text-gray-400 mt-1 text-center">都道府県をタップすると市区町村が表示されます</p>
+
+      <!-- hidden fields for form data -->
+      <input type="hidden" id="prefecture" name="prefecture" />
+      <input type="hidden" id="city" name="city" />
+      <input type="hidden" id="city-multi" name="city_multi" />
+    </div>
+
+    <!-- STEP 3: 乗り物 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm font-bold text-gray-700">🚗 乗り物</p>
+        <span id="vehicle-saved-badge" class="hidden text-[10px] text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">前回の設定を復元</span>
+      </div>
+      <div class="grid grid-cols-4 gap-2">
+        {[
+          ['walk_bicycle','🚲','自転車&徒歩'],
+          ['moped50','🛵','原付(50cc)'],
+          ['motorcycle','🏍️','バイク(51cc〜)'],
+          ['kei_car','🚗','軽自動車'],
+        ].map(([val, icon, label]) => (
+          <label class="vehicle-label flex flex-col items-center gap-1 border rounded-xl px-2 py-3 cursor-pointer transition-colors text-xs border-gray-200 hover:border-gray-300">
+            <input type="radio" name="vehicle" value={val} class="sr-only vehicle-radio" />
+            <span class="text-xl">{icon}</span>
+            <span class="text-center text-[10px] leading-tight">{label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+
+    <!-- エラー・レート制限 -->
+    <div id="error-msg" class="hidden bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700"></div>
+    <div id="rate-limit-msg" class="hidden bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-600">
+      <p>⏳ 連続投稿の制限中です。<span id="rate-timer" class="font-bold"></span>後に再度投稿できます。</p>
+    </div>
+
+    <!-- 送信ボタン -->
+    <button type="submit" id="submit-btn"
+      class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all text-base disabled:opacity-40 disabled:cursor-not-allowed"
+      disabled>
+      📤 データを送信する
+    </button>
+    <p class="text-[10px] text-gray-400 text-center">スクショ + エリア + 乗り物の3つで送信できます</p>
+
+    <!-- ハニーポット -->
+    <div style="position:absolute;left:-9999px;top:-9999px;">
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+    </div>
+  </form>
+</div>
+
+<script>
+  // ===== 状態管理 =====
+  let formLoadTime = Date.now();
+  const selectedCities = new Set<string>();
+  let currentPickerPref = '';
+  let pickerInCityMode = false;
+  let ocrDataReady = false; // OCRデータが揃っているか
+
+  // ===== 送信可否の更新 =====
+  function updateSubmitState() {
+    const hasOCR = ocrDataReady;
+    const hasArea = selectedCities.size > 0;
+    const hasVehicle = !!(document.querySelector('input[name="vehicle"]:checked') as HTMLInputElement)?.value;
+    const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+    btn.disabled = !(hasOCR && hasArea && hasVehicle);
+  }
+
+  // ===== localStorage復元: 配達エリア & 乗り物 =====
+  function restoreSavedPrefs() {
+    // 乗り物
+    const savedVehicle = localStorage.getItem('uber_pref_vehicle');
+    if (savedVehicle) {
+      const radio = document.querySelector(`input[name="vehicle"][value="${savedVehicle}"]`) as HTMLInputElement;
+      if (radio) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
+        document.getElementById('vehicle-saved-badge')!.classList.remove('hidden');
+      }
+    }
+    // 配達エリア（県名 + 市区町村リスト）
+    const savedPref = localStorage.getItem('uber_pref_prefecture');
+    const savedCities = localStorage.getItem('uber_pref_cities');
+    if (savedPref && savedCities) {
+      try {
+        const cities = JSON.parse(savedCities) as string[];
+        if (cities.length > 0) {
+          (document.getElementById('prefecture') as HTMLInputElement).value = savedPref;
+          currentPickerPref = savedPref;
+          cities.forEach(c => selectedCities.add(c));
+          updateCityTags();
+          document.getElementById('area-saved-badge')!.classList.remove('hidden');
+        }
+      } catch {}
+    }
+    updateSubmitState();
+  }
+
+  function savePrefToStorage() {
+    const vehicle = (document.querySelector('input[name="vehicle"]:checked') as HTMLInputElement)?.value;
+    if (vehicle) localStorage.setItem('uber_pref_vehicle', vehicle);
+    if (currentPickerPref) localStorage.setItem('uber_pref_prefecture', currentPickerPref);
+    if (selectedCities.size > 0) localStorage.setItem('uber_pref_cities', JSON.stringify([...selectedCities]));
+  }
+
+  // ===== 乗り物ラジオボタン =====
+  document.querySelectorAll('.vehicle-radio').forEach(radio => {
+    radio.addEventListener('change', () => {
+      document.querySelectorAll('.vehicle-label').forEach(l => {
+        l.classList.remove('border-blue-500', 'bg-blue-50', 'text-blue-700', 'font-semibold');
+        l.classList.add('border-gray-200');
+      });
+      const label = radio.closest('label')!;
+      label.classList.add('border-blue-500', 'bg-blue-50', 'text-blue-700', 'font-semibold');
+      label.classList.remove('border-gray-200');
+      savePrefToStorage();
+      updateSubmitState();
+    });
+  });
+
+  // ===== 不正対策 =====
+  function checkRateLimit(): { ok: boolean; waitSec: number } {
+    const last = parseInt(localStorage.getItem('uber_last_submit') ?? '0');
+    const cooldown = 30000;
+    const elapsed = Date.now() - last;
+    if (elapsed < cooldown) return { ok: false, waitSec: Math.ceil((cooldown - elapsed) / 1000) };
+    return { ok: true, waitSec: 0 };
+  }
+
+  function checkDuplicate(entry: any): boolean {
+    let data: any[] = [];
+    try { data = JSON.parse(localStorage.getItem('uber_data') ?? '[]'); } catch {}
+    return data.some((d: any) =>
+      d.prefecture === entry.prefecture &&
+      d.city === entry.city &&
+      d.hours === entry.hours &&
+      d.earnings === entry.earnings &&
+      d.vehicle === entry.vehicle &&
+      d.timestamp?.slice(0, 10) === new Date().toISOString().slice(0, 10)
+    );
+  }
+
+  // ===== エリアタグ表示 =====
+  function updateCityTags() {
+    const container = document.getElementById('city-tags')!;
+    const placeholder = document.getElementById('city-tags-placeholder')!;
+    container.querySelectorAll('.city-tag').forEach(el => el.remove());
+    if (selectedCities.size === 0) {
+      placeholder.classList.remove('hidden');
+    } else {
+      placeholder.classList.add('hidden');
+      selectedCities.forEach(name => {
+        const tag = document.createElement('span');
+        tag.className = 'city-tag inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 text-xs font-semibold';
+        tag.innerHTML = `${name} <button type="button" class="ml-0.5 text-emerald-400 hover:text-red-500 text-xs font-bold" data-city="${name}">✕</button>`;
+        tag.querySelector('button')!.addEventListener('click', () => {
+          selectedCities.delete(name);
+          updateCityTags();
+          updatePickerHighlights();
+          savePrefToStorage();
+          updateSubmitState();
+        });
+        container.appendChild(tag);
+      });
+    }
+    // hidden fieldsを更新
+    const first = [...selectedCities][0] || '';
+    (document.getElementById('city') as HTMLInputElement).value = first;
+    (document.getElementById('city-multi') as HTMLInputElement).value = [...selectedCities].join(',');
+  }
+
+  function updatePickerHighlights() {
+    if (!pickerD3) return;
+    pickerD3.selectAll('.picker-cities path').each(function(d: any) {
+      const name = cityFullNameGlobal(d);
+      const el = pickerD3.select(this);
+      if (selectedCities.has(name)) {
+        el.attr('fill', '#34d399');
+      } else {
+        el.attr('fill', isUberArea(currentPickerPref, name) ? '#e8f4f8' : '#3f3f46');
+      }
+    });
+  }
+
+  // ===== Uber Eats 対応エリア =====
+  const UBER_AREA: Record<string, Set<string>> = {
+    '北海道': new Set(['札幌市','江別市','千歳市','恵庭市','石狩市','北広島市','旭川市','函館市','北斗市','釧路市','帯広市','苫小牧市','小樽市','室蘭市','登別市','岩見沢市','北見市','東神楽町','音更町','倶知安町','七飯町','南幌町','滝川市']),
+    '青森': new Set(['青森市','八戸市','弘前市','むつ市','三沢市','平川市','六戸町','十和田市']),
+    '岩手': new Set(['盛岡市','一関市','北上市','滝沢市','花巻市','奥州市']),
+    '宮城': new Set(['仙台市','名取市','多賀城市','塩竈市','富谷市','利府町','石巻市','大崎市','大河原町','岩沼市','東松島市','登米市','松島町','七ヶ浜町','大和町','亘理町']),
+    '秋田': new Set(['秋田市','大仙市','横手市','北秋田市','能代市','大館市','由利本荘市']),
+    '山形': new Set(['山形市','鶴岡市','酒田市','天童市','東根市','米沢市','中山町','寒河江市']),
+    '福島': new Set(['福島市','郡山市','いわき市','二本松市','会津若松市','南相馬市','猪苗代町','白河市','須賀川市','伊達市','相馬市']),
+    '茨城': new Set(['水戸市','つくば市','土浦市','日立市','ひたちなか市','筑西市','牛久市','龍ケ崎市','取手市','守谷市','古河市','かすみがうら市','つくばみらい市','利根町','坂東市','常総市','東海村','神栖市','笠間市','結城市','那珂市','阿見町','鹿嶋市','茨城町','境町']),
+    '栃木': new Set(['宇都宮市','小山市','那須塩原市','栃木市','足利市','佐野市','下野市','壬生町','大田原市','野木町','鹿沼市','上三川町']),
+    '群馬': new Set(['前橋市','高崎市','太田市','伊勢崎市','館林市','渋川市','みどり市','吉岡町','大泉町','富岡市','桐生市','藤岡市','邑楽町','安中市','千代田町','板倉町','明和町','榛東村','玉村町']),
+    '埼玉': new Set(['さいたま市','川越市','川口市','所沢市','越谷市','草加市','春日部市','上尾市','熊谷市','新座市','狭山市','久喜市','入間市','深谷市','朝霞市','戸田市','志木市','和光市','富士見市','三郷市','蕨市','八潮市','ふじみ野市','坂戸市','鶴ヶ島市','桶川市','北本市','蓮田市','吉川市','鴻巣市','行田市','加須市','羽生市','白岡市','秩父市','飯能市','東松山市','日高市','三芳町','上里町','吉見町','宮代町','小川町','川島町','幸手市','本庄市','杉戸町','松伏町','毛呂山町','滑川町','鳩山町','神川町','皆野町','長瀞町','嵐山町','寄居町']),
+    '千葉': new Set(['千葉市','船橋市','松戸市','市川市','柏市','市原市','八千代市','流山市','野田市','我孫子市','浦安市','習志野市','鎌ケ谷市','木更津市','君津市','袖ケ浦市','成田市','佐倉市','四街道市','印西市','茂原市','八街市','東金市','山武市','大網白里市','富津市','富里市','旭市','白井市','酒々井町','香取市','銚子市','いすみ市','栄町','芝山町','館山市']),
+    '東京': new Set(['千代田区','中央区','港区','新宿区','文京区','台東区','墨田区','江東区','品川区','目黒区','大田区','世田谷区','渋谷区','中野区','杉並区','豊島区','北区','荒川区','板橋区','練馬区','足立区','葛飾区','江戸川区','八王子市','立川市','武蔵野市','三鷹市','青梅市','府中市','昭島市','調布市','町田市','小金井市','小平市','日野市','東村山市','国分寺市','国立市','福生市','狛江市','東大和市','清瀬市','東久留米市','武蔵村山市','多摩市','稲城市','羽村市','あきる野市','西東京市','日の出町','瑞穂町']),
+    '神奈川': new Set(['横浜市','川崎市','相模原市','藤沢市','横須賀市','平塚市','茅ヶ崎市','厚木市','大和市','海老名市','座間市','小田原市','秦野市','伊勢原市','綾瀬市','鎌倉市','逗子市','三浦市','寒川町','中井町','二宮町','南足柄市','大井町','大磯町','愛川町','松田町','湯河原町','葉山町','開成町','箱根町']),
+    '新潟': new Set(['新潟市','長岡市','上越市','三条市','新発田市','柏崎市','妙高市','燕市']),
+    '富山': new Set(['富山市','高岡市','砺波市','射水市','黒部市','立山町']),
+    '石川': new Set(['金沢市','白山市','野々市市','加賀市','内灘町','小松市','能美市']),
+    '福井': new Set(['福井市','敦賀市','越前市','鯖江市','坂井市','永平寺町']),
+    '山梨': new Set(['甲府市','中央市','南アルプス市','富士吉田市','山中湖村','山梨市','昭和町','甲州市','甲斐市','笛吹市','韮崎市','北杜市']),
+    '長野': new Set(['長野市','松本市','上田市','下諏訪町','中野市','佐久市','千曲市','塩尻市','安曇野市','小諸市','茅野市','軽井沢町','飯田市','須坂市','御代田町','高森町']),
+    '岐阜': new Set(['岐阜市','大垣市','多治見市','各務原市','可児市','美濃加茂市','関市','瑞浪市','土岐市','中津川市','恵那市','北方町','垂井町','岐南町','本巣市','瑞穂市','笠松町','羽島市','安八町','池田町','海津市','御嵩町','大野町','坂祝町','高山市','山県市','養老町']),
+    '静岡': new Set(['静岡市','浜松市','沼津市','富士市','磐田市','焼津市','藤枝市','三島市','富士宮市','掛川市','御殿場市','袋井市','裾野市','湖西市','伊東市','伊豆の国市','函南町','島田市','清水町','牧之原市','菊川市','長泉町','吉田町']),
+    '愛知': new Set(['名古屋市','豊田市','一宮市','岡崎市','豊橋市','春日井市','安城市','刈谷市','豊川市','西尾市','小牧市','稲沢市','瀬戸市','半田市','東海市','江南市','大府市','知多市','日進市','あま市','長久手市','尾張旭市','蒲郡市','犬山市','岩倉市','清須市','北名古屋市','豊明市','知立市','碧南市','高浜市','蟹江町','東郷町','扶桑町','大治町','大口町','常滑市','幸田町','弥富市','東浦町','武豊町','津島市','豊山町','阿久比町','美浜町','飛島村','田原市']),
+    '三重': new Set(['津市','四日市市','鈴鹿市','松阪市','桑名市','名張市','伊賀市','伊勢市','いなべ市','亀山市','川越町','明和町','菰野町','朝日町','木曽岬町','多気町','玉城町','東員町']),
+    '滋賀': new Set(['大津市','草津市','長浜市','彦根市','東近江市','近江八幡市','守山市','栗東市','甲賀市','湖南市','野洲市','豊郷町']),
+    '京都': new Set(['京都市','宇治市','長岡京市','向日市','亀岡市','城陽市','木津川市','八幡市','京田辺市','福知山市','舞鶴市','綾部市','久御山町','大山崎町','精華町']),
+    '大阪': new Set(['大阪市','堺市','東大阪市','枚方市','豊中市','吹田市','高槻市','茨木市','八尾市','寝屋川市','岸和田市','和泉市','守口市','門真市','箕面市','大東市','松原市','富田林市','河内長野市','摂津市','羽曳野市','池田市','泉佐野市','貝塚市','交野市','柏原市','藤井寺市','泉大津市','高石市','四條畷市','阪南市','泉南市','大阪狭山市','島本町','忠岡町','熊取町','太子町','河南町','田尻町','岬町']),
+    '兵庫': new Set(['神戸市','姫路市','西宮市','尼崎市','明石市','加古川市','宝塚市','伊丹市','川西市','三田市','芦屋市','高砂市','豊岡市','たつの市','加東市','太子町','播磨町','福崎町','稲美町','西脇市','小野市']),
+    '奈良': new Set(['奈良市','橿原市','生駒市','大和郡山市','香芝市','大和高田市','天理市','桜井市','葛城市','御所市','広陵町','河合町','王寺町','田原本町','安堵町','斑鳩町','三郷町']),
+    '和歌山': new Set(['和歌山市','田辺市','岩出市','御坊市','橋本市','海南市','上富田町']),
+    '鳥取': new Set(['鳥取市','米子市','境港市','日吉津村']),
+    '島根': new Set(['松江市','出雲市']),
+    '岡山': new Set(['岡山市','倉敷市','津山市','総社市','早島町','真庭市']),
+    '広島': new Set(['広島市','福山市','呉市','東広島市','尾道市','廿日市市','三原市','府中町','海田町','熊野町','三次市','坂町']),
+    '山口': new Set(['下関市','山口市','宇部市','周南市','下松市','岩国市','防府市','柳井市']),
+    '徳島': new Set(['徳島市','阿南市','松茂町','藍住町','石井町','北島町','小松島市','鳴門市']),
+    '香川': new Set(['高松市','丸亀市','観音寺市','三豊市','さぬき市','坂出市','宇多津町','三木町','善通寺市']),
+    '愛媛': new Set(['松山市','今治市','新居浜市','西条市','伊予市','四国中央市','東温市','松前町','砥部町']),
+    '高知': new Set(['高知市','南国市','土佐市']),
+    '福岡': new Set(['福岡市','北九州市','久留米市','飯塚市','大牟田市','春日市','筑紫野市','大野城市','太宰府市','糸島市','宗像市','福津市','那珂川市','志免町','粕屋町','新宮町','柳川市','みやま市','八女市','筑後市','直方市','行橋市','田川市','中間市','久山町','宇美町','小郡市','水巻町','筑前町','篠栗町','苅田町','須恵町','朝倉市','芦屋町','みやこ町','宮若市','岡垣町','大川市','遠賀町','大刀洗町','吉富町','古賀市']),
+    '佐賀': new Set(['佐賀市','唐津市','鳥栖市','伊万里市','基山町','みやき町','小城市','武雄市','吉野ヶ里町']),
+    '長崎': new Set(['長崎市','佐世保市','諫早市','大村市','時津町','長与町']),
+    '熊本': new Set(['熊本市','八代市','合志市','菊陽町','嘉島町','大津町','天草市','益城町','荒尾市','人吉市','御船町']),
+    '大分': new Set(['大分市','別府市','中津市','日田市','臼杵市']),
+    '宮崎': new Set(['宮崎市','都城市','延岡市','日向市','高鍋町','三股町']),
+    '鹿児島': new Set(['鹿児島市','霧島市','奄美市','薩摩川内市','姶良市','鹿屋市','出水市','肝付町']),
+    '沖縄': new Set(['那覇市','浦添市','宜野湾市','沖縄市','豊見城市','糸満市','南城市','名護市','うるま市','宮古島市','石垣市','北谷町','西原町','南風原町','読谷村','中城村','北中城村','与那原町','嘉手納町','八重瀬町','恩納村','金武町']),
+  };
+
+  function isUberArea(prefName: string, cityName: string): boolean {
+    const cities = UBER_AREA[prefName];
+    if (!cities) return false;
+    if (cities.has(cityName)) return true;
+    for (const c of cities) {
+      if (cityName.startsWith(c) || c.startsWith(cityName)) return true;
+    }
+    return false;
+  }
+
+  // ===== 地図ピッカー =====
+  const PICKER_PREFS = [
+    '北海道','青森','岩手','宮城','秋田','山形','福島',
+    '茨城','栃木','群馬','埼玉','千葉','東京','神奈川',
+    '新潟','富山','石川','福井','山梨','長野',
+    '岐阜','静岡','愛知','三重',
+    '滋賀','京都','大阪','兵庫','奈良','和歌山',
+    '鳥取','島根','岡山','広島','山口',
+    '徳島','香川','愛媛','高知',
+    '福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄',
+  ];
+  const PICKER_PREF_CODE: Record<string, string> = {};
+  PICKER_PREFS.forEach((n, i) => { PICKER_PREF_CODE[n] = String(i + 1).padStart(2, '0'); });
+
+  const PICKER_ENG_TO_JA: Record<string, string> = {
+    'Hokkaido':'北海道','Aomori':'青森','Iwate':'岩手','Miyagi':'宮城','Akita':'秋田',
+    'Yamagata':'山形','Fukushima':'福島','Ibaraki':'茨城','Tochigi':'栃木','Gunma':'群馬',
+    'Saitama':'埼玉','Chiba':'千葉','Tokyo':'東京','Kanagawa':'神奈川','Niigata':'新潟',
+    'Toyama':'富山','Ishikawa':'石川','Fukui':'福井','Yamanashi':'山梨','Nagano':'長野',
+    'Gifu':'岐阜','Shizuoka':'静岡','Aichi':'愛知','Mie':'三重','Shiga':'滋賀',
+    'Kyoto':'京都','Osaka':'大阪','Hyogo':'兵庫','Nara':'奈良','Wakayama':'和歌山',
+    'Tottori':'鳥取','Shimane':'島根','Okayama':'岡山','Hiroshima':'広島','Yamaguchi':'山口',
+    'Tokushima':'徳島','Kagawa':'香川','Ehime':'愛媛','Kochi':'高知','Fukuoka':'福岡',
+    'Saga':'佐賀','Nagasaki':'長崎','Kumamoto':'熊本','Oita':'大分','Miyazaki':'宮崎',
+    'Kagoshima':'鹿児島','Okinawa':'沖縄',
+  };
+
+  function pickerPrefName(props: any): string {
+    let raw = '';
+    if (props.nam_ja) raw = props.nam_ja;
+    else if (props.name && /[\u3000-\u9fff]/.test(props.name)) raw = props.name;
+    else if (props.nam && PICKER_ENG_TO_JA[props.nam]) return PICKER_ENG_TO_JA[props.nam];
+    else raw = props.name ?? '';
+    if (raw === '北海道') return '北海道';
+    return raw.replace(/[都道府県]$/,'');
+  }
+
+  // 市区町村名ヘルパー（グローバル参照用）
+  function cityFullNameGlobal(d: any): string {
+    const gun = d.properties.N03_003 || '';
+    const city = d.properties.N03_004 || '';
+    return (gun && city) ? gun + city : city || gun;
+  }
+
+  let pickerD3: any = null;
+  let pickerTopo: any = null;
+  let pickerReady = false;
+
+  async function initPicker() {
+    const wrap = document.getElementById('picker-wrap')!;
+    const W = wrap.offsetWidth, H = wrap.offsetHeight;
+    // D3読み込み
+    if (!(window as any).d3) {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js';
+      document.head.appendChild(s);
+      await new Promise<void>((res, rej) => { s.onload = () => res(); s.onerror = () => rej(); });
+    }
+    pickerD3 = (window as any).d3;
+
+    // GeoJSON
+    const prefData = await pickerD3.json('https://cdn.jsdelivr.net/gh/dataofjapan/land@master/japan.geojson');
+    document.getElementById('picker-loading')!.style.display = 'none';
+
+    const svg = pickerD3.select('#picker-svg');
+    const proj = pickerD3.geoMercator().center([137.0, 37.5]).scale(1400).translate([W / 2, H / 2]);
+    const path = pickerD3.geoPath().projection(proj);
+    const gLayer = svg.append('g');
+
+    // 都道府県描画
+    gLayer.selectAll('path')
+      .data(prefData.features)
+      .enter().append('path')
+      .attr('d', path)
+      .attr('fill', '#e2e8f0')
+      .attr('stroke', '#94a3b8')
+      .attr('stroke-width', 0.5)
+      .style('cursor', 'pointer')
+      .on('mouseover', function() { pickerD3.select(this).attr('fill', '#bfdbfe'); })
+      .on('mouseout', function() { pickerD3.select(this).attr('fill', '#e2e8f0'); })
+      .on('click', function(_: any, d: any) {
+        const name = pickerPrefName(d.properties);
+        if (pickerInCityMode && currentPickerPref === name) return;
+        if (pickerInCityMode) {
+          gLayer.selectAll('.picker-cities').remove();
+          svg.on('.zoom', null);
+          pickerInCityMode = false;
+        }
+        (document.getElementById('prefecture') as HTMLInputElement).value = name;
+        currentPickerPref = name;
+        selectedCities.clear();
+        updateCityTags();
+        showCityPicker(name, path, gLayer, svg, W, H, d);
+      });
+
+    // ラベル
+    gLayer.selectAll('text')
+      .data(prefData.features)
+      .enter().append('text')
+      .attr('x', (d: any) => { try { return path.centroid(d)[0]; } catch { return 0; } })
+      .attr('y', (d: any) => { try { return path.centroid(d)[1]; } catch { return 0; } })
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '4px')
+      .attr('fill', '#475569')
+      .attr('pointer-events', 'none')
+      .text((d: any) => pickerPrefName(d.properties));
+
+    // ズーム
+    const prefZoom = pickerD3.zoom().scaleExtent([1, 8])
+      .on('zoom', (event: any) => {
+        gLayer.attr('transform', event.transform);
+        const k = event.transform.k;
+        gLayer.selectAll('text').attr('font-size', `${7 / k}px`);
+        gLayer.selectAll('path').attr('stroke-width', 0.5 / k);
+      });
+    svg.call(prefZoom);
+
+    pickerReady = true;
+
+    // 保存済みエリアがあれば地図にもドリルダウン
+    if (currentPickerPref && selectedCities.size > 0) {
+      const feat = prefData.features.find((f: any) => pickerPrefName(f.properties) === currentPickerPref);
+      if (feat) {
+        setTimeout(() => showCityPicker(currentPickerPref, path, gLayer, svg, W, H, feat), 300);
+      }
+    }
+  }
+
+  async function showCityPicker(
+    prefName: string, pathFn: any, gLayer: any, svg: any, W: number, H: number, prefFeature: any
+  ) {
+    const code = PICKER_PREF_CODE[prefName];
+    if (!code) return;
+
+    gLayer.selectAll('.picker-cities').remove();
+    pickerInCityMode = true;
+    currentPickerPref = prefName;
+
+    // ナビボタン更新
+    const btnPref = document.getElementById('picker-btn-pref')!;
+    const btnCity = document.getElementById('picker-btn-city')!;
+    btnPref.className = 'bg-white/95 text-gray-700 backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-gray-200 transition-colors hover:bg-gray-50 cursor-pointer';
+    btnCity.className = 'bg-blue-600 text-white backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-blue-600 transition-colors';
+    btnCity.textContent = `📍 ${prefName}`;
+    (btnCity as HTMLButtonElement).disabled = false;
+    document.getElementById('picker-hint')!.textContent = '配達エリアをタップで選択（暗い地域はUber Eats非対応）';
+
+    try {
+      if (!pickerTopo) {
+        if (!(window as any).topojson) {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js';
+          document.head.appendChild(s);
+          await new Promise<void>((res, rej) => { s.onload = () => res(); s.onerror = () => rej(); });
+        }
+        pickerTopo = (window as any).topojson;
+      }
+
+      const urls = [
+        `https://cdn.jsdelivr.net/gh/smartnews-smri/japan-topography@main/data/municipality/topojson/s0010/N03-21_${code}_210101.json`,
+        `https://raw.githubusercontent.com/smartnews-smri/japan-topography/main/data/municipality/topojson/s0010/N03-21_${code}_210101.json`,
+      ];
+      let topo: any = null;
+      for (const url of urls) {
+        try { topo = await pickerD3.json(url); if (topo?.objects) break; } catch {}
+      }
+      if (!topo) throw new Error('取得失敗');
+
+      const objKey = Object.keys(topo.objects)[0];
+      const geoData = pickerTopo.feature(topo, topo.objects[objKey]);
+
+      const features = geoData.features.filter((d: any) => {
+        try {
+          const c = pickerD3.geoCentroid(d);
+          return c[1] >= 30 && c[1] <= 46 && c[0] >= 128 && c[0] <= 146;
+        } catch { return false; }
+      });
+
+      // IQR離島除外でフィット
+      const centroids: {x: number; y: number; f: any}[] = [];
+      for (const f of features) {
+        try {
+          const c = pathFn.centroid(f);
+          if (c && isFinite(c[0]) && isFinite(c[1])) centroids.push({x: c[0], y: c[1], f});
+        } catch {}
+      }
+      let fitFeatures = features;
+      if (centroids.length > 4) {
+        const xs = centroids.map(c => c.x).sort((a: number, b: number) => a - b);
+        const ys = centroids.map(c => c.y).sort((a: number, b: number) => a - b);
+        const q = (arr: number[], p: number) => arr[Math.floor(arr.length * p)];
+        const iqrX = q(xs, 0.75) - q(xs, 0.25);
+        const iqrY = q(ys, 0.75) - q(ys, 0.25);
+        const loX = q(xs, 0.25) - iqrX * 1.5, hiX = q(xs, 0.75) + iqrX * 1.5;
+        const loY = q(ys, 0.25) - iqrY * 1.5, hiY = q(ys, 0.75) + iqrY * 1.5;
+        const inliers = centroids.filter(c => c.x >= loX && c.x <= hiX && c.y >= loY && c.y <= hiY);
+        if (inliers.length > 0) fitFeatures = inliers.map(c => c.f);
+      }
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const f of fitFeatures) {
+        try {
+          const b = pathFn.bounds(f);
+          if (b[0][0] < minX) minX = b[0][0];
+          if (b[0][1] < minY) minY = b[0][1];
+          if (b[1][0] > maxX) maxX = b[1][0];
+          if (b[1][1] > maxY) maxY = b[1][1];
+        } catch {}
+      }
+      const pad = 0.15;
+      const dx = (maxX - minX) * (1 + pad * 2);
+      const dy = (maxY - minY) * (1 + pad * 2);
+      const scale = 0.9 / Math.max(dx / W, dy / H);
+      const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+      const tx = W / 2 - scale * cx, ty = H / 2 - scale * cy;
+
+      // 都道府県パスを薄く
+      gLayer.selectAll('path').interrupt().transition().duration(300)
+        .attr('fill-opacity', 0.05).attr('stroke-opacity', 0.1);
+      gLayer.selectAll('text').attr('opacity', 0);
+      gLayer.interrupt();
+
+      // 市区町村レイヤー
+      const cityG = gLayer.append('g').attr('class', 'picker-cities');
+
+      function cityDefaultFill(d: any): string {
+        const name = cityFullNameGlobal(d);
+        if (selectedCities.has(name)) return '#34d399';
+        return isUberArea(prefName, name) ? '#e8f4f8' : '#3f3f46';
+      }
+
+      cityG.selectAll('path')
+        .data(features)
+        .enter().append('path')
+        .attr('d', pathFn)
+        .attr('fill', (d: any) => cityDefaultFill(d))
+        .attr('stroke', '#64748b')
+        .attr('stroke-width', 0.2 / scale)
+        .style('cursor', (d: any) => isUberArea(prefName, cityFullNameGlobal(d)) ? 'pointer' : 'not-allowed')
+        .style('opacity', (d: any) => isUberArea(prefName, cityFullNameGlobal(d)) ? 1 : 0.7)
+        .on('mouseover', function(_: any, d: any) {
+          const name = cityFullNameGlobal(d);
+          if (!isUberArea(prefName, name)) return;
+          if (!selectedCities.has(name)) pickerD3.select(this).attr('fill', '#a7f3d0');
+        })
+        .on('mouseout', function(_: any, d: any) {
+          pickerD3.select(this).attr('fill', cityDefaultFill(d));
+        })
+        .on('click', function(_: any, d: any) {
+          const name = cityFullNameGlobal(d);
+          if (!isUberArea(prefName, name)) return;
+          if (selectedCities.has(name)) {
+            selectedCities.delete(name);
+          } else {
+            selectedCities.add(name);
+          }
+          pickerD3.select(this).attr('fill', cityDefaultFill(d));
+          updateCityTags();
+          savePrefToStorage();
+          updateSubmitState();
+        });
+
+      // ラベル
+      const seen = new Set<string>();
+      const labelFeatures = features.filter((d: any) => {
+        const name = cityFullNameGlobal(d);
+        if (!name || seen.has(name)) return false;
+        seen.add(name);
+        try { const c = pathFn.centroid(d); return isFinite(c[0]); } catch { return false; }
+      });
+
+      cityG.selectAll('text')
+        .data(labelFeatures)
+        .enter().append('text')
+        .attr('class', 'city-label')
+        .attr('x', (d: any) => pathFn.centroid(d)[0])
+        .attr('y', (d: any) => pathFn.centroid(d)[1])
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', `${9 / scale}px`)
+        .attr('font-family', 'sans-serif')
+        .attr('fill', '#1e293b')
+        .attr('stroke', 'white')
+        .attr('stroke-width', `${0.3 / scale}px`)
+        .attr('pointer-events', 'none')
+        .attr('opacity', 0)
+        .text((d: any) => {
+          const gun = d.properties.N03_003 || '';
+          const city = d.properties.N03_004 || '';
+          if (gun && city) return city;
+          return city || gun;
+        });
+
+      // ズーム
+      gLayer.transition().duration(500)
+        .attr('transform', `translate(${tx},${ty}) scale(${scale})`);
+
+      const baseScale = scale;
+      const pickerZoom = pickerD3.zoom().scaleExtent([0.5, 8])
+        .on('zoom', (event: any) => {
+          const k = event.transform.k;
+          const totalScale = baseScale * k;
+          gLayer.attr('transform',
+            `translate(${tx * k + event.transform.x},${ty * k + event.transform.y}) scale(${totalScale})`);
+          const labelOpacity = (k >= 5 && k <= 15) ? Math.min(1, (k - 5) / 0.5) : 0;
+          cityG.selectAll('.city-label')
+            .attr('opacity', labelOpacity)
+            .attr('font-size', `${9 / totalScale}px`)
+            .attr('stroke-width', `${0.2 / totalScale}px`);
+          cityG.selectAll('path').attr('stroke-width', 0.2 / totalScale);
+        });
+      setTimeout(() => { svg.call(pickerZoom); }, 550);
+
+      // 既選択エリアをハイライト
+      setTimeout(() => updatePickerHighlights(), 100);
+
+      // 都道府県ボタンで戻る
+      document.getElementById('picker-btn-pref')!.onclick = () => {
+        svg.on('.zoom', null);
+        pickerZoom.on('zoom', null);
+        cityG.remove();
+        gLayer.selectAll('path').interrupt().transition().duration(300)
+          .attr('fill-opacity', 1).attr('stroke-opacity', 1).attr('fill', '#e2e8f0');
+        gLayer.selectAll('text').attr('opacity', 1);
+        gLayer.interrupt().transition().duration(400).attr('transform', '');
+        const prefZoomBack = pickerD3.zoom().scaleExtent([1, 8])
+          .on('zoom', (event: any) => {
+            gLayer.attr('transform', event.transform);
+            const k = event.transform.k;
+            gLayer.selectAll('text').attr('font-size', `${7 / k}px`);
+            gLayer.selectAll('path').attr('stroke-width', 0.5 / k);
+          });
+        setTimeout(() => { svg.call(prefZoomBack); }, 450);
+        // ナビボタン
+        const btnP = document.getElementById('picker-btn-pref')!;
+        const btnC = document.getElementById('picker-btn-city')!;
+        btnP.className = 'bg-blue-600 text-white backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-blue-600 transition-colors';
+        btnC.className = 'bg-white/95 text-gray-400 backdrop-blur rounded-lg shadow px-2.5 py-1.5 text-xs font-bold border border-gray-200 transition-colors cursor-not-allowed';
+        btnC.textContent = '📍 市区町村';
+        (btnC as HTMLButtonElement).disabled = true;
+        setTimeout(() => { pickerInCityMode = false; }, 100);
+        const count = selectedCities.size;
+        document.getElementById('picker-hint')!.textContent = count > 0
+          ? `✅ ${count}エリア選択中 — 他の都道府県もタップで追加できます`
+          : '都道府県をタップすると市区町村が表示されます';
+      };
+
+    } catch {
+      document.getElementById('picker-hint')!.textContent = '⚠️ 市区町村データ取得失敗';
+    }
+  }
+
+  // ===== OCR =====
+  const dropzone = document.getElementById('ocr-dropzone')!;
+  const fileInput = document.getElementById('ocr-file') as HTMLInputElement;
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-violet-100'); });
+  dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('bg-violet-100'); });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('bg-violet-100');
+    if (e.dataTransfer?.files?.length) {
+      fileInput.files = e.dataTransfer.files;
+      handleOCRFile(e.dataTransfer.files[0]);
+    }
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.length) handleOCRFile(fileInput.files[0]);
+  });
+
+  async function handleOCRFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      (document.getElementById('ocr-thumb') as HTMLImageElement).src = e.target?.result as string;
+      document.getElementById('ocr-placeholder')!.classList.add('hidden');
+      document.getElementById('ocr-preview-img')!.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+
+    document.getElementById('ocr-processing')!.classList.remove('hidden');
+    document.getElementById('ocr-result')!.classList.add('hidden');
+    document.getElementById('ocr-error')!.classList.add('hidden');
+    document.getElementById('ocr-weekly-warning')!.classList.add('hidden');
+    const progressBar = document.getElementById('ocr-progress-bar') as HTMLElement;
+    progressBar.style.width = '10%';
+
+    try {
+      if (!(window as any).Tesseract) {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+        document.head.appendChild(s);
+        await new Promise<void>((res, rej) => { s.onload = () => res(); s.onerror = () => rej(); });
+      }
+      progressBar.style.width = '30%';
+
+      const Tesseract = (window as any).Tesseract;
+      const result = await Tesseract.recognize(file, 'jpn+eng', {
+        logger: (m: any) => {
+          if (m.status === 'recognizing text' && m.progress) {
+            progressBar.style.width = `${30 + m.progress * 60}%`;
+          }
+        },
+      });
+      progressBar.style.width = '95%';
+
+      const parsed = parseUberScreenshot(result.data.text);
+      // 画像ピクセル分析で棒グラフの選択日を検出
+      const barResult = await detectSelectedBarDay(file);
+
+      // 週間画像の検出 → 警告
+      const weeklyWarn = document.getElementById('ocr-weekly-warning')!;
+      weeklyWarn.classList.add('hidden');
+      if (barResult.isWeekly) {
+        weeklyWarn.classList.remove('hidden');
+        console.log('[BAR] weekly image detected, showing warning');
+      }
+
+      if (barResult.dayOfWeek) {
+        parsed.dayOfWeek = barResult.dayOfWeek;
+        console.log('[BAR] detected selected day:', barResult.dayOfWeek);
+      }
+      progressBar.style.width = '100%';
+
+      if (parsed.earnings > 0 || parsed.hours > 0) {
+        (document.getElementById('ocr-earnings') as HTMLInputElement).value = String(parsed.earnings);
+        (document.getElementById('ocr-hours') as HTMLInputElement).value = String(parsed.hoursInt);
+        (document.getElementById('ocr-minutes') as HTMLInputElement).value = String(parsed.minutesInt);
+        (document.getElementById('ocr-deliveries') as HTMLInputElement).value = String(parsed.deliveries || '');
+        (document.getElementById('ocr-base-fare') as HTMLInputElement).value = String(parsed.baseFare || '');
+        (document.getElementById('ocr-promotion') as HTMLInputElement).value = String(parsed.promotion || '');
+        // 曜日をセット（棒グラフ検出 > OCRテキスト検出 > 今日の曜日）
+        const detectedDow = parsed.dayOfWeek || ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+        (document.getElementById('ocr-dow') as HTMLInputElement).value = detectedDow;
+        selectDowButton(detectedDow);
+        updateOCRHourly();
+        document.getElementById('ocr-processing')!.classList.add('hidden');
+        document.getElementById('ocr-result')!.classList.remove('hidden');
+        // 週間画像の場合は投稿できないようにする
+        ocrDataReady = !barResult.isWeekly;
+        updateSubmitState();
+      } else {
+        throw new Error('データを読み取れませんでした');
+      }
+    } catch {
+      document.getElementById('ocr-processing')!.classList.add('hidden');
+      document.getElementById('ocr-weekly-warning')!.classList.add('hidden');
+      const errorEl = document.getElementById('ocr-error')!;
+      errorEl.textContent = '⚠️ 読み取り失敗。数値を手動で入力してください。';
+      errorEl.classList.remove('hidden');
+      // 失敗時も今日の曜日をデフォルトセット
+      const defaultDow = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+      (document.getElementById('ocr-dow') as HTMLInputElement).value = defaultDow;
+      selectDowButton(defaultDow);
+      document.getElementById('ocr-result')!.classList.remove('hidden');
+      ocrDataReady = true;
+      updateSubmitState();
+    }
+  }
+
+  /**
+   * 画像ピクセル分析で Uber Eats 棒グラフの「選択中の日」を検出する。
+   *
+   * 戦略:
+   *  1. 画像上部を走査し、青系ピクセルが集中する Y 帯を動的に検出
+   *     （画面レイアウトのずれに対応）
+   *  2. その帯を 7 分割し、各列の「明るい青」と「暗い青」のピクセル数を計測
+   *  3. 全列が同じ明るさ → 週間表示（isWeekly=true）
+   *  4. 1列だけ明るい → その列が選択中の曜日
+   *
+   * 返り値: { dayOfWeek: string, isWeekly: boolean }
+   */
+  async function detectSelectedBarDay(file: File): Promise<{ dayOfWeek: string; isWeekly: boolean }> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const W = img.naturalWidth;
+          const H = img.naturalHeight;
+          canvas.width = W;
+          canvas.height = H;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0);
+
+          // ===== STEP 1: 青系ピクセルが集中する Y 帯を動的に検出 =====
+          // 画像上半分 (0% 〜 40%) をスキャンして、青ピクセルの Y 分布を調べる
+          const scanTop = 0;
+          const scanBottom = Math.floor(H * 0.40);
+          const fullData = ctx.getImageData(0, scanTop, W, scanBottom).data;
+
+          // Y ごとに青ピクセル数をカウント
+          const blueByRow: number[] = new Array(scanBottom).fill(0);
+          for (let y = 0; y < scanBottom; y++) {
+            for (let x = 0; x < W; x++) {
+              const idx = (y * W + x) * 4;
+              const r = fullData[idx], g = fullData[idx + 1], b = fullData[idx + 2];
+              // 青系（棒グラフ）: b>80, b>r, 背景黒や白テキストを除外
+              const sum = r + g + b;
+              if (b > 80 && b > r && sum > 120 && sum < 650) {
+                blueByRow[y]++;
+              }
+            }
+          }
+
+          // 青ピクセルが多い行の範囲を見つける（棒グラフの Y 帯）
+          const maxRow = Math.max(...blueByRow);
+          const threshold = maxRow * 0.15; // 最大の 15% 以上ある行を棒グラフ領域とみなす
+          let barYStart = -1, barYEnd = -1;
+          for (let y = 0; y < scanBottom; y++) {
+            if (blueByRow[y] > threshold) {
+              if (barYStart < 0) barYStart = y;
+              barYEnd = y;
+            }
+          }
+
+          if (barYStart < 0 || barYEnd - barYStart < 5) {
+            console.log('[BAR] no bar chart region found');
+            resolve({ dayOfWeek: '', isWeekly: false });
+            return;
+          }
+
+          console.log('[BAR] detected bar Y range:', barYStart, '-', barYEnd, '(H=' + H + ')');
+
+          // ===== STEP 2: 棒グラフの Y 帯を 7 分割して色分析 =====
+          const xMargin = Math.floor(W * 0.03);
+          const regionW = W - xMargin * 2;
+          const regionH = barYEnd - barYStart;
+          const barData = ctx.getImageData(xMargin, barYStart, regionW, regionH).data;
+          const colWidth = Math.floor(regionW / 7);
+
+          // 各列の「明るい青」と「暗い青」ピクセル数
+          const brightCounts: number[] = [];
+          const darkCounts: number[] = [];
+          const anyBlueCounts: number[] = [];
+
+          for (let col = 0; col < 7; col++) {
+            let bright = 0, dark = 0, anyBlue = 0;
+            const cxStart = col * colWidth;
+            const cxEnd = cxStart + colWidth;
+
+            for (let y = 0; y < regionH; y++) {
+              for (let x = cxStart; x < cxEnd; x++) {
+                const idx = (y * regionW + x) * 4;
+                const r = barData[idx], g = barData[idx + 1], b = barData[idx + 2];
+                const sum = r + g + b;
+
+                // 背景黒(sum<80) やテキスト白(sum>650) を除外
+                if (sum < 80 || sum > 650) continue;
+
+                // 青系のピクセル
+                if (b > 80 && b > r) {
+                  anyBlue++;
+                  // 明るい青 vs 暗い青を判定
+                  // 明るい青（選択中）: 青成分が高く、全体的に明るめ
+                  //   例: rgb(130,160,220) 〜 rgb(170,190,245)
+                  // 暗い青（非選択）: 全体的に暗い
+                  //   例: rgb(60,65,85) 〜 rgb(90,100,130)
+                  if (b > 140 && sum > 300) {
+                    bright++;
+                  } else if (sum < 300) {
+                    dark++;
+                  }
+                }
+              }
+            }
+            brightCounts.push(bright);
+            darkCounts.push(dark);
+            anyBlueCounts.push(anyBlue);
+          }
+
+          console.log('[BAR] bright:', brightCounts);
+          console.log('[BAR] dark:', darkCounts);
+          console.log('[BAR] anyBlue:', anyBlueCounts);
+
+          // ===== STEP 3: 週間表示 vs 日別表示を判定 =====
+          const totalBright = brightCounts.reduce((a, b) => a + b, 0);
+          const totalDark = darkCounts.reduce((a, b) => a + b, 0);
+
+          // 棒があるカラム（ある程度の青ピクセルがある列）を特定
+          const minForBar = Math.max(...anyBlueCounts) * 0.05;
+          const barsWithData = anyBlueCounts.filter(c => c > minForBar).length;
+
+          // 明るい青ピクセルがある列の数をカウント
+          const brightThreshold = totalBright > 0 ? Math.max(...brightCounts) * 0.3 : 0;
+          const brightCols = brightCounts.filter(c => c > brightThreshold).length;
+
+          console.log('[BAR] barsWithData:', barsWithData, 'brightCols:', brightCols,
+            'totalBright:', totalBright, 'totalDark:', totalDark);
+
+          // 週間表示判定: 暗い棒がほぼ無く、データのある棒が全て明るい
+          if (totalDark < totalBright * 0.1 && barsWithData >= 2 && brightCols >= barsWithData) {
+            console.log('[BAR] WEEKLY view detected (all bars are bright blue)');
+            resolve({ dayOfWeek: '', isWeekly: true });
+            return;
+          }
+
+          // 明るい棒が複数あって暗い棒が少ない → 週間
+          if (brightCols >= 3 && totalDark < totalBright * 0.3) {
+            console.log('[BAR] WEEKLY view detected (multiple bright bars, few dark)');
+            resolve({ dayOfWeek: '', isWeekly: true });
+            return;
+          }
+
+          // ===== STEP 4: 1列だけ明るい → 選択中の曜日を特定 =====
+          const maxBright = Math.max(...brightCounts);
+          if (maxBright < 10) {
+            console.log('[BAR] no bright bars detected');
+            resolve({ dayOfWeek: '', isWeekly: false });
+            return;
+          }
+
+          const selectedCol = brightCounts.indexOf(maxBright);
+          // 2番目との差を確認
+          const sorted = [...brightCounts].sort((a, b) => b - a);
+          if (sorted[1] > 0 && sorted[0] / sorted[1] < 1.5) {
+            console.log('[BAR] ambiguous: top two close', sorted[0], 'vs', sorted[1]);
+            // それでも暗い棒が十分あれば日別表示かもしれない
+            if (totalDark > totalBright * 0.5) {
+              // 暗い棒が多い → 日別表示で2列の棒が近い高さ
+              // 棒の高さ（anyBlue）が最大の列を選ぶ代わりに、明るい列の中で最大を使う
+              console.log('[BAR] treating as daily (dark bars exist)');
+            } else {
+              resolve({ dayOfWeek: '', isWeekly: false });
+              return;
+            }
+          }
+
+          // 開始日の曜日から選択曜日を計算
+          const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+          if ((window as any).__ocrStartDow !== undefined) {
+            const startDow = (window as any).__ocrStartDow as number;
+            const selectedDow = (startDow + selectedCol) % 7;
+            console.log('[BAR] col:', selectedCol, 'startDow:', dayKeys[startDow], '→', dayKeys[selectedDow]);
+            resolve({ dayOfWeek: dayKeys[selectedDow], isWeekly: false });
+          } else {
+            console.log('[BAR] no start dow info available');
+            resolve({ dayOfWeek: '', isWeekly: false });
+          }
+        } catch (err) {
+          console.log('[BAR] pixel analysis error:', err);
+          resolve({ dayOfWeek: '', isWeekly: false });
+        }
+      };
+      img.onerror = () => resolve({ dayOfWeek: '', isWeekly: false });
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  function parseUberScreenshot(text: string) {
+    const result = { earnings: 0, hours: 0, hoursInt: 0, minutesInt: 0, deliveries: 0, baseFare: 0, promotion: 0, dayOfWeek: '' as string };
+
+    // デバッグ: OCR生テキスト出力
+    console.log('[OCR] raw text:', text);
+
+    // 前処理: 全角数字→半角、全角カンマ→半角、余分なスペース圧縮
+    const t = text
+      .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30))
+      .replace(/[，]/g, ',')
+      .replace(/[ \t]+/g, ' ');
+
+    // 行ごとに分割して解析（OCRは行単位で出力するため）
+    const lines = t.split(/\n/).map(l => l.trim()).filter(Boolean);
+    console.log('[OCR] lines:', lines);
+
+    // ヘルパー: 行から金額を抽出
+    function extractAmount(line: string): number {
+      const m = line.match(/[¥￥\\Y]\s?([\d,]+)/);
+      if (m) return parseInt(m[1].replace(/,/g, ''));
+      // ¥記号なしの金額（行末の数字のみ）
+      const m2 = line.match(/([\d,]{2,})$/);
+      if (m2) return parseInt(m2[1].replace(/,/g, ''));
+      return 0;
+    }
+
+    // まず全テキストを1つにまとめてパターンマッチ（1行で来る場合の対策）
+    const flat = lines.join(' ');
+
+    // 正味の料金（ラベルの直後の金額を取る）
+    for (const pat of [/正味.{0,3}料金\s*[¥￥\\Y]\s?([\d,]+)/, /正味.{0,3}料金\s+([\d,]{2,})/]) {
+      const m = flat.match(pat);
+      if (m) { result.baseFare = parseInt(m[1].replace(/,/g, '')); console.log('[OCR] baseFare:', result.baseFare); break; }
+    }
+
+    // プロモーション（non-greedy + ¥有り/無しの両方に対応）
+    for (const pat of [/(?:プロモ|ブロモ|promotion)\S*\s*[¥￥\\Y]\s?([\d,]+)/i, /(?:プロモ|ブロモ|promotion)\S*\s+([\d,]{2,})/i]) {
+      const m = flat.match(pat);
+      if (m) { result.promotion = parseInt(m[1].replace(/,/g, '')); console.log('[OCR] promotion:', result.promotion); break; }
+    }
+
+    // 売り上げ総額
+    for (const pat of [/売.{0,3}上.{0,3}総額\s*[¥￥\\Y]\s?([\d,]+)/, /売.{0,3}上.{0,3}総額\s+([\d,]{2,})/]) {
+      const m = flat.match(pat);
+      if (m) { result.earnings = parseInt(m[1].replace(/,/g, '')); console.log('[OCR] earnings (total):', result.earnings); break; }
+    }
+
+    // 売上が未検出の場合: 全金額から最大値
+    if (!result.earnings) {
+      const amountPat = /[¥￥\\Y]\s?([\d,]+)/g;
+      const allAmounts: number[] = [];
+      let am;
+      while ((am = amountPat.exec(flat)) !== null) allAmounts.push(parseInt(am[1].replace(/,/g, '')));
+      // ¥記号なしの行末金額も拾う
+      for (const line of lines) {
+        const m2 = line.match(/([\d,]{4,})$/);
+        if (m2) allAmounts.push(parseInt(m2[1].replace(/,/g, '')));
+      }
+      if (allAmounts.length > 0) {
+        allAmounts.sort((a, b) => b - a);
+        result.earnings = allAmounts[0];
+        console.log('[OCR] earnings (max fallback):', result.earnings);
+      }
+    }
+
+    // 各行を解析（時間・件数）
+    for (const line of lines) {
+      // オンライン時間
+      if (!result.hours) {
+        for (const pat of [/(\d+)\s*[時hH]\s*[間]?\s*(\d+)\s*[分mM]/, /(\d+)\s*時間\s*(\d+)\s*分/]) {
+          const m = line.match(pat);
+          if (m) {
+            result.hoursInt = parseInt(m[1]);
+            result.minutesInt = parseInt(m[2]);
+            result.hours = result.hoursInt + result.minutesInt / 60;
+            console.log('[OCR] time:', result.hoursInt, 'h', result.minutesInt, 'm', '<-', line);
+            break;
+          }
+        }
+      }
+
+      // 乗車/配達件数
+      if (!result.deliveries) {
+        for (const pat of [/乗車\s*(\d+)(?!\s*[時hH])/, /(?:配達|rides?)\s+(\d+)/, /(\d+)\s*(?:件|回)/]) {
+          const m = line.match(pat);
+          if (m) {
+            result.deliveries = parseInt(m[1]);
+            console.log('[OCR] deliveries:', result.deliveries, '<-', line);
+            break;
+          }
+        }
+      }
+    }
+
+    // 乗車件数がまだ未検出: 全テキストからも探す（時間の数字を誤検出しないよう負の先読み）
+    if (!result.deliveries) {
+      for (const pat of [/乗車\s*(\d+)(?!\s*[時hH])/, /(?:配達|rides?)\s+(\d+)/, /(\d+)\s*(?:件|回)/]) {
+        const m = flat.match(pat);
+        if (m) { result.deliveries = parseInt(m[1]); console.log('[OCR] deliveries (flat):', result.deliveries); break; }
+      }
+    }
+
+    // OCRで「乗車」と数字が別の行に来るケース
+    if (!result.deliveries) {
+      for (let i = 0; i < lines.length; i++) {
+        if (/乗車/.test(lines[i])) {
+          // 同行に数字あるか（時間以外）
+          const m = lines[i].match(/(\d+)/);
+          if (m && !/時/.test(lines[i])) { result.deliveries = parseInt(m[1]); break; }
+          // 次行をチェック: 時間パターンの後ろに残る数字、または数字だけの行
+          if (i + 1 < lines.length) {
+            const nextLine = lines[i+1].trim();
+            if (/^\d+$/.test(nextLine)) {
+              result.deliveries = parseInt(nextLine);
+              console.log('[OCR] deliveries (next line pure number):', result.deliveries);
+              break;
+            }
+            // 「4 時間 24 分 12」のように時間+件数が混在する行
+            const afterTime = nextLine.replace(/\d+\s*[時hH]\s*[間]?\s*\d+\s*[分mM]?/, '').trim();
+            if (afterTime && /^\d+$/.test(afterTime)) {
+              result.deliveries = parseInt(afterTime);
+              console.log('[OCR] deliveries (after time):', result.deliveries);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 売上が未検出の場合: 全金額から最大値
+    if (!result.earnings && allAmounts.length > 0) {
+      allAmounts.sort((a, b) => b - a);
+      result.earnings = allAmounts[0];
+      console.log('[OCR] earnings (max fallback):', result.earnings);
+    }
+
+    // 正味+プロモ=売上 の整合性チェック → 片方が欠けていたら計算で補完
+    if (result.earnings > 0 && result.baseFare > 0 && !result.promotion) {
+      result.promotion = result.earnings - result.baseFare;
+      if (result.promotion < 0) result.promotion = 0;
+    }
+    if (result.earnings > 0 && result.promotion > 0 && !result.baseFare) {
+      result.baseFare = result.earnings - result.promotion;
+      if (result.baseFare < 0) result.baseFare = 0;
+    }
+
+    // 日付検出 → 曜日を自動判定
+    // Uber Eats画面のヘッダーに「3月30日 - 4月6日」（週範囲）or 単独の日付が表示される
+    // 棒グラフの下に「30 月 31 火 1 水 ...」と全曜日が並ぶため、
+    // OCRだけでは「どの日が選択中か」判別不可 → 手動セレクターで補完
+    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
+    // パターン1: 「○月○日」形式（ただし範囲「○月○日 - ○月○日」はスキップ）
+    // 範囲でない単独の日付のみマッチ
+    const dateRangePat = /(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*[-\-〜~]/;
+    const rangeMatch = flat.match(dateRangePat);
+    const isRange = !!rangeMatch;
+    // 範囲の場合: 開始日の曜日を保存（棒グラフ分析用）
+    if (isRange && rangeMatch) {
+      const rMo = parseInt(rangeMatch[1]), rDa = parseInt(rangeMatch[2]);
+      if (rMo >= 1 && rMo <= 12 && rDa >= 1 && rDa <= 31) {
+        const rDt = new Date(currentYear, rMo - 1, rDa);
+        if (rDt > now) rDt.setFullYear(currentYear - 1);
+        (window as any).__ocrStartDow = rDt.getDay();
+        console.log('[OCR] date range start:', rMo + '/' + rDa, 'dow:', dayKeys[rDt.getDay()]);
+      }
+    }
+    if (!isRange) {
+      const datePat1 = flat.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+      if (datePat1) {
+        const mo = parseInt(datePat1[1]), da = parseInt(datePat1[2]);
+        if (mo >= 1 && mo <= 12 && da >= 1 && da <= 31) {
+          const dt = new Date(currentYear, mo - 1, da);
+          if (dt > now) dt.setFullYear(currentYear - 1);
+          result.dayOfWeek = dayKeys[dt.getDay()];
+          console.log('[OCR] date detected:', mo + '/' + da, '→', result.dayOfWeek);
+        }
+      }
+    }
+    // パターン2: 「○/○」形式（年なし、範囲でない場合のみ）
+    if (!result.dayOfWeek) {
+      const slashRange = /(\d{1,2})\/(\d{1,2})\s*[-\-〜~]/;
+      if (!slashRange.test(flat)) {
+        const datePat2 = flat.match(/(\d{1,2})\/(\d{1,2})/);
+        if (datePat2) {
+          const mo = parseInt(datePat2[1]), da = parseInt(datePat2[2]);
+          if (mo >= 1 && mo <= 12 && da >= 1 && da <= 31) {
+            const dt = new Date(currentYear, mo - 1, da);
+            if (dt > now) dt.setFullYear(currentYear - 1);
+            result.dayOfWeek = dayKeys[dt.getDay()];
+            console.log('[OCR] date detected (slash):', mo + '/' + da, '→', result.dayOfWeek);
+          }
+        }
+      }
+    }
+    // パターン3: 曜日テキスト直接検出（「月曜日」「(火)」など）
+    // 注: 棒グラフの「30 月 31 火 ...」ラベルは複数あるのでスキップ
+    if (!result.dayOfWeek) {
+      const dowMap: Record<string, string> = { '日': 'sun', '月': 'mon', '火': 'tue', '水': 'wed', '木': 'thu', '金': 'fri', '土': 'sat' };
+      // 「月曜日」「(火)」のような明確な曜日表現のみマッチ
+      const dowPat = flat.match(/([日月火水木金土])\s*曜/);
+      if (dowPat && dowMap[dowPat[1]]) {
+        result.dayOfWeek = dowMap[dowPat[1]];
+        console.log('[OCR] dayOfWeek direct:', dowPat[0], '→', result.dayOfWeek);
+      }
+    }
+    console.log('[OCR] dayOfWeek result:', result.dayOfWeek || '(未検出 → 手動選択)');
+
+    console.log('[OCR] parsed result:', result);
+    return result;
+  }
+
+  // 曜日ボタン選択
+  function selectDowButton(dow: string) {
+    document.querySelectorAll('#ocr-dow-buttons .dow-btn').forEach((btn) => {
+      const b = btn as HTMLButtonElement;
+      if (b.dataset.dow === dow) {
+        b.classList.remove('bg-white', 'border-gray-200');
+        b.classList.add('bg-blue-600', 'text-white', 'border-blue-600');
+      } else {
+        b.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+        b.classList.add('bg-white', 'border-gray-200');
+        // 土曜と日曜の色を復元
+        if (b.dataset.dow === 'sat') { b.classList.add('text-blue-600'); b.classList.remove('text-gray-600'); }
+        else if (b.dataset.dow === 'sun') { b.classList.add('text-red-500'); b.classList.remove('text-gray-600'); }
+        else { b.classList.add('text-gray-600'); }
+      }
+    });
+    (document.getElementById('ocr-dow') as HTMLInputElement).value = dow;
+  }
+
+  // 曜日ボタンのクリックイベント
+  document.querySelectorAll('#ocr-dow-buttons .dow-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectDowButton((btn as HTMLButtonElement).dataset.dow!);
+    });
+  });
+
+  function updateOCRHourly() {
+    const earnings = parseFloat((document.getElementById('ocr-earnings') as HTMLInputElement).value) || 0;
+    const hours = parseFloat((document.getElementById('ocr-hours') as HTMLInputElement).value) || 0;
+    const minutes = parseFloat((document.getElementById('ocr-minutes') as HTMLInputElement).value) || 0;
+    const totalHours = hours + minutes / 60;
+    const hourlyEl = document.getElementById('ocr-hourly') as HTMLInputElement;
+    if (totalHours > 0 && earnings > 0) {
+      hourlyEl.value = `¥${Math.round(earnings / totalHours).toLocaleString()}`;
+    } else {
+      hourlyEl.value = '-';
+    }
+  }
+
+  ['ocr-earnings', 'ocr-hours', 'ocr-minutes'].forEach(id => {
+    document.getElementById(id)!.addEventListener('input', () => {
+      updateOCRHourly();
+      ocrDataReady = true;
+      updateSubmitState();
+    });
+  });
+
+  // ===== フォーム送信 =====
+  document.getElementById('data-form')!.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('error-msg')!;
+
+    // ハニーポット
+    if ((document.getElementById('website') as HTMLInputElement).value) {
+      document.getElementById('data-form')!.classList.add('hidden');
+      document.getElementById('success-msg')!.classList.remove('hidden');
+      return;
+    }
+    // 速度チェック
+    if (Date.now() - formLoadTime < 3000) {
+      document.getElementById('data-form')!.classList.add('hidden');
+      document.getElementById('success-msg')!.classList.remove('hidden');
+      return;
+    }
+    // レート制限
+    const rl = checkRateLimit();
+    if (!rl.ok) {
+      document.getElementById('rate-limit-msg')!.classList.remove('hidden');
+      document.getElementById('rate-timer')!.textContent = `${rl.waitSec}秒`;
+      const interval = setInterval(() => {
+        const check = checkRateLimit();
+        if (check.ok) { clearInterval(interval); document.getElementById('rate-limit-msg')!.classList.add('hidden'); }
+        else { document.getElementById('rate-timer')!.textContent = `${check.waitSec}秒`; }
+      }, 1000);
+      return;
+    }
+
+    // データ収集
+    const pref = (document.getElementById('prefecture') as HTMLInputElement).value;
+    const cityMulti = (document.getElementById('city-multi') as HTMLInputElement).value;
+    const cities = cityMulti ? cityMulti.split(',').filter(Boolean) : [];
+    const vehicle = (document.querySelector('input[name="vehicle"]:checked') as HTMLInputElement)?.value;
+    const earnings = parseFloat((document.getElementById('ocr-earnings') as HTMLInputElement).value) || 0;
+    const hoursVal = parseFloat((document.getElementById('ocr-hours') as HTMLInputElement).value) || 0;
+    const minutesVal = parseFloat((document.getElementById('ocr-minutes') as HTMLInputElement).value) || 0;
+    const hours = hoursVal + minutesVal / 60;
+    const deliveries = parseInt((document.getElementById('ocr-deliveries') as HTMLInputElement).value) || 0;
+    const baseFare = parseInt((document.getElementById('ocr-base-fare') as HTMLInputElement).value) || 0;
+    const promotion = parseInt((document.getElementById('ocr-promotion') as HTMLInputElement).value) || 0;
+
+    // バリデーション
+    if (!pref || cities.length === 0) { errorEl.textContent = '⚠️ 配達エリアを地図から選んでください'; errorEl.classList.remove('hidden'); return; }
+    if (!vehicle) { errorEl.textContent = '⚠️ 乗り物を選んでください'; errorEl.classList.remove('hidden'); return; }
+    if (hours <= 0) { errorEl.textContent = '⚠️ オンライン時間を入力してください'; errorEl.classList.remove('hidden'); return; }
+    if (earnings <= 0) { errorEl.textContent = '⚠️ 売上を入力してください'; errorEl.classList.remove('hidden'); return; }
+
+    const rate = Math.round(earnings / hours);
+    if (rate > 8000 || rate < 100) {
+      errorEl.textContent = '⚠️ 時給が現実的な範囲外です。入力内容を確認してください。';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    errorEl.classList.add('hidden');
+
+    // 曜日はセレクターから取得（OCR検出 or ユーザー手動選択）
+    const dayOfWeek = (document.getElementById('ocr-dow') as HTMLInputElement).value || ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+
+    // 選択した全市区町村に対してそれぞれエントリを作成
+    const entries = cities.map(cityName => ({
+      prefecture: pref, city: cityName, vehicle,
+      dayType: dayOfWeek,
+      timeSlot: 'unknown',
+      hours: Math.round(hours * 10) / 10, earnings,
+      deliveries: deliveries || null,
+      baseFare: baseFare || null,
+      promotion: promotion || null,
+      hourlyRate: rate,
+      memo: '',
+      timestamp: new Date().toISOString(),
+      dayOfWeek,
+      fromOCR: true,
+    }));
+
+    // 重複チェック（最初のエントリで代表チェック）
+    if (checkDuplicate(entries[0])) {
+      errorEl.textContent = '⚠️ 同じ内容のデータが本日すでに投稿されています';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    // 保存（全エリア分をまとめて追加）
+    const existing = JSON.parse(localStorage.getItem('uber_data') ?? '[]');
+    const prevCount = existing.length;
+    localStorage.setItem('uber_data', JSON.stringify([...existing, ...entries]));
+    localStorage.setItem('uber_last_submit', String(Date.now()));
+
+    const newCount = prevCount + entries.length;
+
+    // 成功
+    const successSub = document.getElementById('success-sub')!;
+    successSub.textContent = `累計 ${newCount}件のデータ提供 — ありがとうございます！`;
+
+    document.getElementById('data-form')!.classList.add('hidden');
+    document.getElementById('success-msg')!.classList.remove('hidden');
+    window.dispatchEvent(new CustomEvent('uber-data-updated'));
+  });
+
+  // リセット
+  document.getElementById('reset-btn')!.addEventListener('click', () => {
+    document.getElementById('data-form')!.classList.remove('hidden');
+    document.getElementById('success-msg')!.classList.add('hidden');
+    // OCRリセット
+    document.getElementById('ocr-result')!.classList.add('hidden');
+    document.getElementById('ocr-placeholder')!.classList.remove('hidden');
+    document.getElementById('ocr-preview-img')!.classList.add('hidden');
+    (document.getElementById('ocr-file') as HTMLInputElement).value = '';
+    ocrDataReady = false;
+    // 乗り物・エリアはlocalStorageから復元済みなのでそのまま
+    updateSubmitState();
+    formLoadTime = Date.now();
+  });
+
+  // ===== 初期化 =====
+  restoreSavedPrefs();
+  initPicker();
+</script>

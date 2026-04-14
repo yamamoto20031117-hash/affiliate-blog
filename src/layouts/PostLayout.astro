@@ -1,0 +1,123 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import AffiliateBox from '@/components/AffiliateBox.astro';
+import TableOfContents from '@/components/TableOfContents.astro';
+import PostMeta from '@/components/PostMeta.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  pubDate: Date;
+  updatedDate?: Date;
+  heroImage?: string;
+  category?: string;
+  tags?: string[];
+  affiliates?: Array<{
+    name: string;
+    description: string;
+    price: string;
+    url: string;
+    image?: string;
+    badge?: string;
+    rating?: number;
+  }>;
+}
+
+const {
+  title,
+  description,
+  pubDate,
+  updatedDate,
+  heroImage,
+  category,
+  tags = [],
+  affiliates = [],
+} = Astro.props;
+
+// カテゴリ名 → URLスラッグ変換
+const categorySlugMap: Record<string, string> = {
+  'Uber稼ぎ方': 'uber',
+  'クレカ修行': 'credit-card',
+  '扶養・税金': 'tax',
+};
+const categorySlug = category ? (categorySlugMap[category] ?? category.toLowerCase()) : null;
+---
+
+<BaseLayout title={title} description={description} ogImage={heroImage}>
+  <article class="max-w-3xl mx-auto px-4 py-8">
+
+    <!-- パンくずリスト -->
+    <nav class="text-sm text-gray-500 mb-4 flex items-center gap-1 flex-wrap" aria-label="パンくず">
+      <a href="/" class="hover:text-primary-600 transition-colors">ホーム</a>
+      <span>›</span>
+      {category && categorySlug && (
+        <a href={`/category/${categorySlug}`} class="hover:text-primary-600 transition-colors">{category}</a>
+      )}
+      {category && <span>›</span>}
+      <span class="text-gray-700 truncate max-w-[200px]">{title}</span>
+    </nav>
+
+    <!-- PostMeta（カテゴリバッジ・タイトル・日付・タグ） -->
+    <PostMeta
+      title={title}
+      pubDate={pubDate}
+      updatedDate={updatedDate}
+      category={category}
+      tags={tags}
+    />
+
+    <!-- アイキャッチ画像 -->
+    {heroImage && (
+      <div class="rounded-xl overflow-hidden mb-8 shadow-md">
+        <img
+          src={heroImage}
+          alt={title}
+          class="w-full h-48 sm:h-64 object-cover"
+          loading="eager"
+        />
+      </div>
+    )}
+
+    <!-- 目次（あれば） -->
+    <TableOfContents />
+
+    <!-- 本文 -->
+    <div class="prose prose-blue max-w-none
+      prose-headings:font-bold
+      prose-h2:text-xl prose-h2:border-l-4 prose-h2:border-primary-500 prose-h2:pl-3 prose-h2:py-1 prose-h2:bg-primary-50 prose-h2:rounded-r
+      prose-h3:text-lg prose-h3:border-b prose-h3:border-gray-200 prose-h3:pb-1
+      prose-a:text-primary-600 prose-a:no-underline hover:prose-a:underline
+      prose-img:rounded-lg prose-img:shadow
+      prose-blockquote:border-primary-400 prose-blockquote:bg-blue-50 prose-blockquote:py-1 prose-blockquote:rounded-r
+      mb-10">
+      <slot />
+    </div>
+
+    <!-- アフィリエイト商品 -->
+    {affiliates.length > 0 && (
+      <div class="space-y-4 mb-10">
+        <h2 class="text-lg font-bold text-gray-900 border-b-2 border-primary-500 pb-2">
+          おすすめ商品・サービス
+        </h2>
+        {affiliates.map((item) => (
+          <AffiliateBox {...item} />
+        ))}
+      </div>
+    )}
+
+    <!-- タグ -->
+    {tags.length > 0 && (
+      <div class="flex flex-wrap gap-2 mt-8 pt-6 border-t border-gray-200">
+        {tags.map((tag) => (
+          <a
+            href={`/tag/${tag}`}
+            class="text-xs bg-gray-100 hover:bg-primary-100 text-gray-600 hover:text-primary-700 px-3 py-1 rounded-full transition-colors"
+          >
+            #{tag}
+          </a>
+        ))}
+      </div>
+    )}
+
+  </article>
+</BaseLayout>

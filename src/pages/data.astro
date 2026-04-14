@@ -1,0 +1,89 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import DataSubmitForm from '@/components/DataSubmitForm.astro';
+import EarningsMap from '@/components/EarningsMap.astro';
+---
+
+<BaseLayout
+  title="全国Uber Eats 時給マップ"
+  description="配達員が実際に報告した売上データをもとに、全国の平均時給を地図上にリアルタイム表示。都道府県・市区町村ごとの時給を色分けで確認できます。"
+>
+
+  <!-- ヒーロー -->
+  <section class="bg-gradient-to-br from-green-600 to-green-800 text-white py-8 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <div class="text-4xl mb-2">🗾</div>
+      <h1 class="text-2xl sm:text-3xl font-bold mb-2">全国Uber Eats 時給マップ</h1>
+      <p class="text-green-100 text-sm max-w-xl mx-auto">
+        配達員みんなのリアルなデータで作る、市区町村別・乗り物別の時給データベース。<br class="hidden sm:inline" />
+        あなたのデータを投稿してマップを育てよう。
+      </p>
+      <div class="flex justify-center gap-3 mt-4 text-sm flex-wrap">
+        <div class="bg-white/20 rounded-lg px-4 py-2">
+          <div class="font-bold text-lg">🔍</div>
+          <div class="text-xs text-green-200">市区町村対応</div>
+        </div>
+        <div class="bg-white/20 rounded-lg px-4 py-2">
+          <div class="font-bold text-lg">📸</div>
+          <div class="text-xs text-green-200">スクショで自動入力</div>
+        </div>
+        <div class="bg-white/20 rounded-lg px-4 py-2">
+          <div class="font-bold text-lg">🛡️</div>
+          <div class="text-xs text-green-200">不正データ対策済</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- ① 地図（メイン・全幅） -->
+    <section>
+      <h2 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+        <span class="w-1 h-5 bg-green-500 rounded-full"></span>
+        全国時給マップ
+        <span class="text-xs font-normal text-gray-400 ml-1">都道府県クリックで市区町村表示</span>
+      </h2>
+      <EarningsMap />
+    </section>
+
+    <!-- ② データ投稿フォーム -->
+    <section class="max-w-lg mx-auto">
+      <h2 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+        <span class="w-1 h-5 bg-teal-500 rounded-full"></span>
+        データを投稿する
+      </h2>
+      <div class="bg-green-50 border border-green-200 rounded-xl p-3 mb-3 text-xs text-green-700">
+        📋 <strong>所要時間：約1分</strong> / 個人情報は一切収集しません
+      </div>
+      <DataSubmitForm />
+    </section>
+
+    <!-- 使い方ガイド -->
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+      <h3 class="font-bold text-blue-800 text-sm mb-3">🗺️ マップの使い方</h3>
+      <div class="grid sm:grid-cols-3 gap-3 text-xs text-blue-700">
+        <div class="bg-white/70 rounded-lg p-3">
+          <p class="font-bold mb-1">① ズームアウト</p>
+          <p>都道府県ごとの平均時給が色分けで表示されます。</p>
+        </div>
+        <div class="bg-white/70 rounded-lg p-3">
+          <p class="font-bold mb-1">② 都道府県をクリック</p>
+          <p>市区町村の境界が色分けで表示。タップで詳細時給が見れます。</p>
+        </div>
+        <div class="bg-white/70 rounded-lg p-3">
+          <p class="font-bold mb-1">③ データ投稿</p>
+          <p>あなたのデータを投稿するとマップに即反映されます。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 注意書き -->
+    <div class="bg-gray-50 rounded-xl p-4 text-xs text-gray-500">
+      <p>※ 表示データはみんなの投稿データで構成されています。データが増えるほど精度が上がります。</p>
+      <p class="mt-1">※ 現在はブラウザのローカルストレージに保存されます。全国データベース化は今後Supabase連携で実装予定です。</p>
+      <p class="mt-1">※ 不正データ対策として、レート制限・外れ値検出・重複チェックを導入しています。</p>
+    </div>
+
+  </div>
+</BaseLayout>

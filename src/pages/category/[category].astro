@@ -1,0 +1,80 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ArticleCard from '@/components/ArticleCard.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const categoryMap: Record<string, { label: string; slug: string; icon: string; color: string; desc: string }> = {
+    'uber':         { label: 'Uber稼ぎ方',  slug: 'uber',         icon: '🚗', color: 'green',  desc: 'Uber Eatsの配達効率・インセンティブ活用・副業としての稼ぎ方を徹底解説。' },
+    'credit-card':  { label: 'クレカ修行',   slug: 'credit-card',  icon: '💳', color: 'blue',   desc: 'クレジットカードのポイント・マイルを最大効率で貯める方法をご紹介。' },
+    'tax':          { label: '扶養・税金',   slug: 'tax',          icon: '📊', color: 'orange', desc: '副業収入と扶養・確定申告の関係をわかりやすく解説します。' },
+  };
+
+  const allPosts = await getCollection('posts');
+
+  return Object.entries(categoryMap).map(([slug, meta]) => {
+    const posts = allPosts
+      .filter(p => {
+        const cat = p.data.category ?? '';
+        return cat === meta.label;
+      })
+      .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+
+    return {
+      params: { category: slug },
+      props: { meta, posts },
+    };
+  });
+}
+
+const { meta, posts } = Astro.props;
+
+const colorMap: Record<string, { hero: string; badge: string; badgeText: string }> = {
+  green:  { hero: 'from-green-600 to-green-800',   badge: 'bg-green-100',  badgeText: 'text-green-700' },
+  blue:   { hero: 'from-blue-600 to-blue-800',     badge: 'bg-blue-100',   badgeText: 'text-blue-700' },
+  orange: { hero: 'from-orange-500 to-orange-700', badge: 'bg-orange-100', badgeText: 'text-orange-700' },
+};
+const colors = colorMap[meta.color] ?? colorMap['blue'];
+---
+
+<BaseLayout title={`${meta.label}の記事一覧`} description={meta.desc}>
+
+  <!-- カテゴリヒーロー -->
+  <section class={`bg-gradient-to-br ${colors.hero} text-white py-10 px-4`}>
+    <div class="max-w-3xl mx-auto text-center">
+      <div class="text-4xl mb-3">{meta.icon}</div>
+      <h1 class="text-2xl sm:text-3xl font-bold mb-2">{meta.label}</h1>
+      <p class="text-sm sm:text-base opacity-90 max-w-xl mx-auto">{meta.desc}</p>
+    </div>
+  </section>
+
+  <div class="max-w-5xl mx-auto px-4 py-10">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-lg font-bold text-gray-900">
+        {meta.label}の記事
+        <span class="ml-2 text-sm font-normal text-gray-400">({posts.length}件)</span>
+      </h2>
+    </div>
+
+    {posts.length > 0 ? (
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {posts.map(post => (
+          <ArticleCard
+            title={post.data.title}
+            description={post.data.description ?? ''}
+            pubDate={post.data.pubDate}
+            slug={post.slug}
+            heroImage={post.data.heroImage}
+            category={post.data.category}
+            tags={post.data.tags}
+          />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-20 text-gray-400">
+        <div class="text-5xl mb-4">{meta.icon}</div>
+        <p>まだ記事がありません。近日公開予定です！</p>
+      </div>
+    )}
+  </div>
+</BaseLayout>

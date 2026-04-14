@@ -1,0 +1,236 @@
+---
+// 時給チャート（バニラJS版）
+// localStorage の uber_data を読み込んでグラフ表示
+---
+
+<div id="chart-wrapper" class="space-y-6">
+
+  <!-- タブ切り替え -->
+  <div class="flex gap-2 border-b border-gray-200 pb-0">
+    {[
+      ['vehicle',  '🚲 乗り物別'],
+      ['dayType',  '📅 曜日別'],
+      ['timeSlot', '⏰ 時間帯別'],
+      ['area',     '🗾 地域別'],
+    ].map(([key, label]) => (
+      <button
+        data-tab={key}
+        class="chart-tab text-xs font-semibold px-3 py-2 border-b-2 transition-colors -mb-px"
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+
+  <!-- 件数バッジ -->
+  <div class="flex items-center gap-2 text-xs text-gray-500">
+    <span>投稿数:</span>
+    <span id="data-count" class="font-bold text-primary-600">0件</span>
+    <span class="text-gray-300">|</span>
+    <span>投稿データのみ</span>
+  </div>
+
+  <!-- グラフエリア -->
+  <div id="chart-area" class="space-y-2"></div>
+
+  <!-- 空データメッセージ -->
+  <div id="empty-msg" class="hidden text-center py-10 text-gray-400">
+    <div class="text-3xl mb-2">📭</div>
+    <p class="text-sm">まだデータがありません。<br />フォームから投稿してみましょう！</p>
+  </div>
+
+  <!-- サマリー -->
+  <div id="summary-area" class="hidden grid grid-cols-3 gap-3 pt-2 border-t border-gray-100">
+    <div class="text-center">
+      <p class="text-xs text-gray-500">全体平均時給</p>
+      <p id="avg-hourly" class="text-xl font-bold text-primary-600">—</p>
+    </div>
+    <div class="text-center">
+      <p class="text-xs text-gray-500">最高時給</p>
+      <p id="max-hourly" class="text-xl font-bold text-green-600">—</p>
+    </div>
+    <div class="text-center">
+      <p class="text-xs text-gray-500">最低時給</p>
+      <p id="min-hourly" class="text-xl font-bold text-orange-500">—</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ===== データ（ユーザー投稿のみ） =====
+  const DEMO_DATA: any[] = [];
+
+  // ===== ラベルマップ =====
+  const VEHICLE_LABELS: Record<string, string> = {
+    walk_bicycle: '🚲 自転車&徒歩',
+    moped50:      '🛵 原付(50cc)',
+    motorcycle:   '🏍 バイク(51cc〜)',
+    kei_car:      '🚗 軽自動車',
+    bicycle: '🚲 自転車', moped: '🛵 原付', bike: '🏍 バイク', car: '🚗 車',
+  };
+  const DAYTIME_LABELS: Record<string, string> = {
+    weekday: '平日',
+    weekend: '土日祝',
+  };
+  const TIMESLOT_LABELS: Record<string, string> = {
+    lunch:     '☀️ ランチ',
+    afternoon: '🌤 アイドル',
+    dinner:    '🌆 ディナー',
+    night:     '🌙 深夜',
+    all_day:   '📆 終日',
+  };
+
+  // ===== データ取得 =====
+  function getAllData() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('uber_data') ?? '[]');
+      return [...DEMO_DATA, ...saved];
+    } catch {
+      return [...DEMO_DATA];
+    }
+  }
+
+  // ===== グループ集計 =====
+  function groupBy(data: any[], key: string) {
+    const map: Record<string, number[]> = {};
+    for (const d of data) {
+      const k = d[key] ?? 'unknown';
+      if (!map[k]) map[k] = [];
+      map[k].push(d.hourlyRate);
+    }
+    return map;
+  }
+
+  function avgRates(map: Record<string, number[]>): { label: string; avg: number; count: number }[] {
+    return Object.entries(map)
+      .map(([k, rates]) => ({
+        label: k,
+        avg: Math.round(rates.reduce((a, b) => a + b, 0) / rates.length),
+        count: rates.length,
+      }))
+      .sort((a, b) => b.avg - a.avg);
+  }
+
+  // ===== バー描画 =====
+  function renderBars(items: { label: string; avg: number; count: number }[], labelMap?: Record<string, string>) {
+    const chartArea = document.getElementById('chart-area')!;
+    const maxAvg = Math.max(...items.map(i => i.avg), 1);
+
+    chartArea.innerHTML = items.map(item => {
+      const pct = Math.round((item.avg / Math.max(maxAvg * 1.1, 2200)) * 100);
+      const displayLabel = labelMap ? (labelMap[item.label] ?? item.label) : item.label;
+      const color = item.avg >= 2000
+        ? 'bg-green-500'
+        : item.avg >= 1500
+          ? 'bg-yellow-400'
+          : 'bg-orange-400';
+
+      return `
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-gray-700 truncate max-w-[120px]">${displayLabel}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-400">${item.count}件</span>
+              <span class="font-bold ${item.avg >= 2000 ? 'text-green-600' : item.avg >= 1500 ? 'text-yellow-600' : 'text-orange-500'}">
+                ¥${item.avg.toLocaleString()}/h
+              </span>
+            </div>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-5 overflow-hidden">
+            <div class="${color} h-5 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                 style="width: ${Math.max(pct, 8)}%">
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ===== サマリー更新 =====
+  function updateSummary(data: any[]) {
+    const rates = data.map(d => d.hourlyRate).filter(Boolean);
+    if (rates.length === 0) return;
+    const avg = Math.round(rates.reduce((a, b) => a + b, 0) / rates.length);
+    const max = Math.max(...rates);
+    const min = Math.min(...rates);
+
+    document.getElementById('avg-hourly')!.textContent = `¥${avg.toLocaleString()}`;
+    document.getElementById('max-hourly')!.textContent = `¥${max.toLocaleString()}`;
+    document.getElementById('min-hourly')!.textContent = `¥${min.toLocaleString()}`;
+    document.getElementById('summary-area')!.classList.remove('hidden');
+    document.getElementById('summary-area')!.classList.add('grid');
+  }
+
+  // ===== タブ描画 =====
+  let currentTab = 'vehicle';
+
+  function renderChart(tab: string) {
+    const data = getAllData();
+    const countEl = document.getElementById('data-count')!;
+    const emptyMsg = document.getElementById('empty-msg')!;
+    const chartArea = document.getElementById('chart-area')!;
+
+    countEl.textContent = `${data.length}件`;
+
+    if (data.length === 0) {
+      emptyMsg.classList.remove('hidden');
+      chartArea.innerHTML = '';
+      return;
+    }
+    emptyMsg.classList.add('hidden');
+    updateSummary(data);
+
+    const grouped = groupBy(data, tab);
+    const items = avgRates(grouped);
+
+    let labelMap: Record<string, string> | undefined;
+    if (tab === 'vehicle') labelMap = VEHICLE_LABELS;
+    else if (tab === 'dayType') labelMap = DAYTIME_LABELS;
+    else if (tab === 'timeSlot') labelMap = TIMESLOT_LABELS;
+
+    // 地域別は上位10件
+    const displayItems = tab === 'area' ? items.slice(0, 10) : items;
+    renderBars(displayItems, labelMap);
+  }
+
+  // ===== タブスタイル =====
+  function setActiveTab(tab: string) {
+    document.querySelectorAll('.chart-tab').forEach(btn => {
+      const el = btn as HTMLElement;
+      if (el.dataset.tab === tab) {
+        el.classList.add('border-primary-500', 'text-primary-600');
+        el.classList.remove('border-transparent', 'text-gray-500');
+      } else {
+        el.classList.remove('border-primary-500', 'text-primary-600');
+        el.classList.add('border-transparent', 'text-gray-500');
+      }
+    });
+  }
+
+  // ===== 初期化 =====
+  function init() {
+    setActiveTab(currentTab);
+    renderChart(currentTab);
+
+    document.querySelectorAll('.chart-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentTab = (btn as HTMLElement).dataset.tab!;
+        setActiveTab(currentTab);
+        renderChart(currentTab);
+      });
+    });
+
+    // フォームからのデータ更新イベント
+    window.addEventListener('uber-data-updated', () => {
+      renderChart(currentTab);
+    });
+  }
+
+  // DOMロード後に実行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+</script>
