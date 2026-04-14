@@ -304,7 +304,7 @@
       if (!d.prefecture) continue;
       const key = stripSuffix(d.prefecture);
       if (!map.has(key)) map.set(key, {total:0, count:0, v:new Set(), c:new Set()});
-      const r = d.hourlyRate ?? (d.hours > 0 ? Math.round(d.earnings / d.hours) : 0);
+      const r = d.hourlyRate ?? (d.hours > 0 ? Math.round((d.earnings - (d.tip || 0)) / d.hours) : 0);
       const e = map.get(key)!;
       e.total += r; e.count += 1;
       if (d.vehicle) e.v.add(d.vehicle);
@@ -331,7 +331,7 @@
       if (dp !== normalPref) continue;
       const key = d.city;
       if (!map.has(key)) map.set(key, {total:0, count:0, v:new Set(), baseSum:0, promoSum:0, breakdownCount:0});
-      const r = d.hourlyRate ?? (d.hours > 0 ? Math.round(d.earnings / d.hours) : 0);
+      const r = d.hourlyRate ?? (d.hours > 0 ? Math.round((d.earnings - (d.tip || 0)) / d.hours) : 0);
       const e = map.get(key)!;
       e.total += r; e.count += 1;
       if (d.vehicle) e.v.add(d.vehicle);
@@ -383,6 +383,11 @@
   let popupSvgX: number | null = null;
   let popupSvgY: number | null = null;
   let popupVisible = false;
+
+  // ポップアップ再描画用: 現在表示中の地域情報
+  let popupCityName: string = '';
+  let popupPrefName: string = '';
+  let popupCityProps: any = null; // D3 feature properties (市区町村モード時)
 
   // ===== 市区町村TopoJSON読み込み =====
   async function loadCityTopo(prefCode: string): Promise<any> {
@@ -641,7 +646,8 @@
           showPopup(event, name, prefName,
             r ? r.avg : 0, r ? r.count : 0,
             r ? r.vehicles.join('・') : '',
-            r ? r.avgBase : 0, r ? r.avgPromo : 0);
+            r ? r.avgBase : 0, r ? r.avgPromo : 0,
+            d.properties);
         })
         .transition().duration(400)
         .attr('fill-opacity', 0.9);
@@ -864,23 +870,9 @@
   }
 
   // ===== ポップアップ =====
-  function showPopup(
-    event: MouseEvent, name: string, pref: string,
-    avg: number, count: number, vehicles: string,
-    avgBase?: number, avgPromo?: number
-  ) {
-    const popup = document.getElementById('map-popup')!;
-    const wrap  = document.getElementById('map-wrap')!;
-    const rect  = wrap.getBoundingClientRect();
 
-    // クリック位置からSVG空間の座標を逆算して保存
-    const t = d3.zoomTransform(svg.node());
-    const clickX = event.clientX - rect.left;
-    const clickY = event.clientY - rect.top;
-    popupSvgX = (clickX - t.x) / t.k;
-    popupSvgY = (clickY - t.y) / t.k;
-    popupVisible = true;
-
+  // ポップアップ内容だけを更新するヘルパー（フィルター切替時にも呼ばれる）
+  function updatePopupContent(name: string, pref: string, avg: number, count: number, vehicles: string, avgBase?: number, avgPromo?: number) {
     document.getElementById('pp-city')!.textContent = name || '（名称不明）';
     document.getElementById('pp-pref')!.textContent = pref || '';
     const rEl = document.getElementById('pp-rate')!;
@@ -895,7 +887,6 @@
       tEl.style.color = col;
       document.getElementById('pp-count')!.textContent   = `投稿数: ${count}件`;
       document.getElementById('pp-vehicle')!.textContent = vehicles ? `乗り物: ${vehicles}` : '';
-      // 内訳表示
       if (avgBase || avgPromo) {
         document.getElementById('pp-base')!.textContent  = `¥${(avgBase || 0).toLocaleString()}`;
         document.getElementById('pp-promo')!.textContent = `¥${(avgPromo || 0).toLocaleString()}`;
@@ -910,6 +901,33 @@
       document.getElementById('pp-vehicle')!.textContent = '';
       bdEl.classList.add('hidden');
     }
+  }
+
+  function showPopup(
+    event: MouseEvent, name: string, pref: string,
+    avg: number, count: number, vehicles: string,
+    avgBase?: number, avgPromo?: number,
+    cityProps?: any
+  ) {
+    const popup = document.getElementById('map-popup')!;
+    const wrap  = document.getElementById('map-wrap')!;
+    const rect  = wrap.getBoundingClientRect();
+
+    // クリック位置からSVG空間の座標を逆算して保存
+    const t = d3.zoomTransform(svg.node());
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    popupSvgX = (clickX - t.x) / t.k;
+    popupSvgY = (clickY - t.y) / t.k;
+    popupVisible = true;
+
+    // フィルター切替時の再描画用に地域情報を保存
+    popupCityName = name;
+    popupPrefName = pref;
+    popupCityProps = cityProps || null;
+
+    updatePopupContent(name, pref, avg, count, vehicles, avgBase, avgPromo);
+
     popup.classList.remove('hidden');
     // 初回表示時も境界クランプを適用
     updatePopupPosition(t);
@@ -920,6 +938,9 @@
     popupVisible = false;
     popupSvgX = null;
     popupSvgY = null;
+    popupCityName = '';
+    popupPrefName = '';
+    popupCityProps = null;
   });
 
   // ===== マップ色を再描画 =====
@@ -927,24 +948,45 @@
     if (!d3 || !g) return;
     if (activePref) {
       const cityRates = aggregateCity(activePref);
+      // トランジションなしで即時反映
       g.select('.city-layer').selectAll('path')
-        .transition().duration(300)
         .attr('fill', (d: any) => {
           const name = getCityName(d.properties);
           if (!isUberArea(activePref, name)) return '#1e1e1e';
           const r = matchCityRate(d.properties, cityRates);
           return r ? rateColor(r.avg) : '#e2e8f0';
         });
+
+      // ★ ポップアップが表示中なら内容も即時更新
+      if (popupVisible && popupCityProps) {
+        const r = matchCityRate(popupCityProps, cityRates);
+        updatePopupContent(
+          popupCityName, popupPrefName,
+          r ? r.avg : 0, r ? r.count : 0,
+          r ? r.vehicles.join('・') : '',
+          r ? r.avgBase : 0, r ? r.avgPromo : 0
+        );
+      }
     } else {
       const prefRates = aggregatePref();
+      // トランジションなしで即時反映
       g.select('.pref-layer').selectAll('path')
-        .transition().duration(300)
         .attr('fill', (d: any) => {
           const jaName = getPrefNameJa(d.properties);
           if (!UBER_AREA[jaName]) return '#1e1e1e';
           const r = prefRates.get(jaName);
           return r ? rateColor(r.avg) : '#e2e8f0';
         });
+
+      // ★ 都道府県モードでポップアップが表示中なら更新
+      if (popupVisible && popupPrefName && !popupCityProps) {
+        const r = prefRates.get(popupPrefName);
+        updatePopupContent(
+          popupCityName, '',
+          r ? r.avg : 0, r ? r.count : 0,
+          r ? r.vehicles.join('・') : ''
+        );
+      }
     }
   }
 

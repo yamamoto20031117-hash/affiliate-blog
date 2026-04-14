@@ -105,6 +105,13 @@
             </div>
           </div>
           <div>
+            <label class="text-[10px] text-gray-500">チップ</label>
+            <div class="relative">
+              <input type="number" id="ocr-tip" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-right pr-6" />
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">円</span>
+            </div>
+          </div>
+          <div>
             <label class="text-[10px] text-gray-500">オンライン時間</label>
             <div class="flex gap-1">
               <div class="relative flex-1">
@@ -796,6 +803,194 @@
     if (fileInput.files?.length) handleOCRFile(fileInput.files[0]);
   });
 
+  /**
+   * 画像前処理: ダークモード検出 → コントラスト強化 → グレースケール化
+   * OCR精度を大幅に向上させる
+   */
+  async function preprocessImage(file: File): Promise<Blob[]> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const W = img.naturalWidth;
+        const H = img.naturalHeight;
+        const results: Blob[] = [];
+
+        // === パス1: 高コントラスト＋グレースケール化 ===
+        const c1 = document.createElement('canvas');
+        c1.width = W; c1.height = H;
+        const ctx1 = c1.getContext('2d')!;
+        ctx1.drawImage(img, 0, 0);
+        const data1 = ctx1.getImageData(0, 0, W, H);
+        const px1 = data1.data;
+
+        // ダークモード検出: 上半分の平均輝度をチェック
+        let totalBrightness = 0;
+        const sampleH = Math.floor(H * 0.5);
+        for (let y = 0; y < sampleH; y += 3) {
+          for (let x = 0; x < W; x += 3) {
+            const i = (y * W + x) * 4;
+            totalBrightness += (px1[i] + px1[i+1] + px1[i+2]) / 3;
+          }
+        }
+        const avgBrightness = totalBrightness / ((sampleH / 3) * (W / 3));
+        const isDarkMode = avgBrightness < 100;
+        console.log('[OCR-PRE] avg brightness:', avgBrightness.toFixed(1), isDarkMode ? '→ DARK MODE' : '→ LIGHT MODE');
+
+        if (isDarkMode) {
+          // ダークモード: 反転 → コントラスト強化 → 二値化に近い処理
+          for (let i = 0; i < px1.length; i += 4) {
+            // 反転
+            let r = 255 - px1[i], g = 255 - px1[i+1], b = 255 - px1[i+2];
+            // グレースケール
+            let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+            // コントラスト強化 (ガンマ補正 + レベル調整)
+            gray = Math.pow(gray / 255, 0.6) * 255;
+            // しきい値処理で二値化に近づける
+            if (gray > 140) gray = Math.min(255, gray * 1.3);
+            else gray = Math.max(0, gray * 0.5);
+            px1[i] = px1[i+1] = px1[i+2] = Math.min(255, Math.max(0, gray));
+          }
+        } else {
+          // ライトモード: コントラスト強化 + グレースケール
+          for (let i = 0; i < px1.length; i += 4) {
+            let gray = 0.299 * px1[i] + 0.587 * px1[i+1] + 0.114 * px1[i+2];
+            // コントラスト強化
+            gray = ((gray - 128) * 1.6) + 128;
+            // しきい値処理
+            if (gray > 180) gray = 255;
+            else if (gray < 80) gray = 0;
+            px1[i] = px1[i+1] = px1[i+2] = Math.min(255, Math.max(0, gray));
+          }
+        }
+        ctx1.putImageData(data1, 0, 0);
+
+        // === パス2: シャープネス強化版（元画像ベース） ===
+        const c2 = document.createElement('canvas');
+        c2.width = W; c2.height = H;
+        const ctx2 = c2.getContext('2d')!;
+        ctx2.drawImage(img, 0, 0);
+        const data2 = ctx2.getImageData(0, 0, W, H);
+        const px2 = data2.data;
+
+        if (isDarkMode) {
+          // ダークモード パス2: 単純反転 + 軽めの強化
+          for (let i = 0; i < px2.length; i += 4) {
+            px2[i] = 255 - px2[i];
+            px2[i+1] = 255 - px2[i+1];
+            px2[i+2] = 255 - px2[i+2];
+            // 軽いコントラスト
+            let gray = 0.299 * px2[i] + 0.587 * px2[i+1] + 0.114 * px2[i+2];
+            gray = ((gray - 128) * 1.2) + 128;
+            px2[i] = px2[i+1] = px2[i+2] = Math.min(255, Math.max(0, gray));
+          }
+        } else {
+          // ライトモード パス2: 軽い二値化
+          for (let i = 0; i < px2.length; i += 4) {
+            let gray = 0.299 * px2[i] + 0.587 * px2[i+1] + 0.114 * px2[i+2];
+            px2[i] = px2[i+1] = px2[i+2] = gray > 128 ? 255 : 0;
+          }
+        }
+        ctx2.putImageData(data2, 0, 0);
+
+        // Canvas → Blob変換
+        let done = 0;
+        const checkDone = () => { if (++done === 2) resolve(results); };
+        c1.toBlob((b) => { if (b) results[0] = b; checkDone(); }, 'image/png');
+        c2.toBlob((b) => { if (b) results[1] = b; checkDone(); }, 'image/png');
+      };
+      img.onerror = () => resolve([]);
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  /**
+   * 複数OCRパスの結果から最良を選択する。
+   *
+   * 戦略: 「整合性が最も高い単一パスをベースに選択」し、
+   *        欠損フィールドのみ他パスで補完する。
+   *
+   * ⚠️ フィールド単位マージは行わない。異なるパスの値を混ぜると
+   * 正味=プロモ のような矛盾を生むため。
+   */
+  function pickBestOCRResult(results: ReturnType<typeof parseUberScreenshot>[]): ReturnType<typeof parseUberScreenshot> {
+    const empty = { earnings: 0, hours: 0, hoursInt: 0, minutesInt: 0, deliveries: 0, baseFare: 0, promotion: 0, tip: 0, dayOfWeek: '' };
+    if (results.length === 0) return empty;
+    if (results.length === 1) return results[0];
+
+    console.log('[OCR-PICK] comparing', results.length, 'results');
+    results.forEach((r, i) => console.log(`  [pass${i}]`, JSON.stringify(r)));
+
+    // 各結果のスコアを計算
+    function score(r: typeof empty): number {
+      let s = 0;
+
+      // フィールド検出ボーナス
+      if (r.earnings > 0) s += 5;
+      if (r.baseFare > 0) s += 5;
+      if (r.promotion > 0) s += 5;
+      if (r.hours > 0) s += 3;
+      if (r.deliveries > 0) s += 3;
+      if (r.tip > 0) s += 2;
+      if (r.dayOfWeek) s += 1;
+
+      // ★ 整合性ボーナス（最重要）: 正味+プロモ+チップ ≈ 売上
+      if (r.earnings > 0 && r.baseFare > 0 && r.promotion > 0) {
+        const sum = r.baseFare + r.promotion + (r.tip || 0);
+        const diff = Math.abs(sum - r.earnings);
+        if (diff === 0) s += 30;                       // 完全一致
+        else if (diff / r.earnings < 0.02) s += 20;    // 2%以内
+        else if (diff / r.earnings < 0.05) s += 10;    // 5%以内
+        else s -= 5;                                    // 不一致ペナルティ
+      }
+
+      // 正味 ≠ プロモ チェック（同じ値は通常ありえない → 大きなペナルティ）
+      if (r.baseFare > 0 && r.promotion > 0 && r.baseFare === r.promotion) {
+        s -= 15;
+        console.log('[OCR-PICK] penalty: baseFare === promotion =', r.baseFare);
+      }
+
+      // 時給の妥当性（¥500〜¥6000/h）
+      if (r.earnings > 0 && r.hours > 0) {
+        const hourly = (r.earnings - (r.tip || 0)) / r.hours;
+        if (hourly >= 500 && hourly <= 6000) s += 5;
+        else s -= 3;
+      }
+
+      // 配達件数の妥当性（1〜6件/時間が妥当）
+      if (r.deliveries > 0 && r.hours > 0) {
+        const perHour = r.deliveries / r.hours;
+        if (perHour >= 1 && perHour <= 6) s += 3;
+      }
+
+      return s;
+    }
+
+    // スコア順にソート（パス1=元画像を同スコア時に優先）
+    const scored = results.map((r, i) => ({ r, s: score(r), i }));
+    scored.sort((a, b) => b.s - a.s || a.i - b.i);
+
+    console.log('[OCR-PICK] scores:', scored.map(x => `pass${x.i}=${x.s}`).join(', '));
+
+    // 最高スコアのパスをベースにする
+    const best = { ...scored[0].r };
+
+    // 欠損フィールドのみ他パスで補完（値の上書きはしない）
+    for (const { r } of scored.slice(1)) {
+      if (!best.earnings && r.earnings > 0) best.earnings = r.earnings;
+      if (!best.baseFare && r.baseFare > 0) best.baseFare = r.baseFare;
+      if (!best.promotion && r.promotion > 0) best.promotion = r.promotion;
+      if (!best.tip && r.tip > 0) best.tip = r.tip;
+      if (!best.hours && r.hours > 0) {
+        best.hours = r.hours; best.hoursInt = r.hoursInt; best.minutesInt = r.minutesInt;
+      }
+      if (!best.deliveries && r.deliveries > 0) best.deliveries = r.deliveries;
+      if (!best.dayOfWeek && r.dayOfWeek) best.dayOfWeek = r.dayOfWeek;
+    }
+
+    console.log('[OCR-PICK] final:', JSON.stringify(best));
+    return best;
+  }
+
   async function handleOCRFile(file: File) {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -810,28 +1005,67 @@
     document.getElementById('ocr-error')!.classList.add('hidden');
     document.getElementById('ocr-weekly-warning')!.classList.add('hidden');
     const progressBar = document.getElementById('ocr-progress-bar') as HTMLElement;
-    progressBar.style.width = '10%';
+    progressBar.style.width = '5%';
 
     try {
+      // Tesseract.js ロード
       if (!(window as any).Tesseract) {
         const s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
         document.head.appendChild(s);
         await new Promise<void>((res, rej) => { s.onload = () => res(); s.onerror = () => rej(); });
       }
-      progressBar.style.width = '30%';
+      progressBar.style.width = '10%';
+
+      // 画像前処理（ダークモード対応）
+      const preprocessed = await preprocessImage(file);
+      progressBar.style.width = '20%';
+      console.log('[OCR] preprocessed images:', preprocessed.length);
 
       const Tesseract = (window as any).Tesseract;
-      const result = await Tesseract.recognize(file, 'jpn+eng', {
+      const ocrResults: ReturnType<typeof parseUberScreenshot>[] = [];
+
+      // パス1: 元画像でOCR
+      const result1 = await Tesseract.recognize(file, 'jpn+eng', {
         logger: (m: any) => {
           if (m.status === 'recognizing text' && m.progress) {
-            progressBar.style.width = `${30 + m.progress * 60}%`;
+            progressBar.style.width = `${20 + m.progress * 25}%`;
           }
         },
       });
-      progressBar.style.width = '95%';
+      console.log('[OCR-PASS1] raw text:', result1.data.text);
+      ocrResults.push(parseUberScreenshot(result1.data.text));
 
-      const parsed = parseUberScreenshot(result.data.text);
+      // パス2: 前処理画像でOCR（高コントラスト版）
+      if (preprocessed[0]) {
+        const result2 = await Tesseract.recognize(preprocessed[0], 'jpn+eng', {
+          logger: (m: any) => {
+            if (m.status === 'recognizing text' && m.progress) {
+              progressBar.style.width = `${45 + m.progress * 25}%`;
+            }
+          },
+        });
+        console.log('[OCR-PASS2] raw text:', result2.data.text);
+        ocrResults.push(parseUberScreenshot(result2.data.text));
+      }
+
+      // パス3: 前処理画像でOCR（二値化版）
+      if (preprocessed[1]) {
+        const result3 = await Tesseract.recognize(preprocessed[1], 'jpn+eng', {
+          logger: (m: any) => {
+            if (m.status === 'recognizing text' && m.progress) {
+              progressBar.style.width = `${70 + m.progress * 20}%`;
+            }
+          },
+        });
+        console.log('[OCR-PASS3] raw text:', result3.data.text);
+        ocrResults.push(parseUberScreenshot(result3.data.text));
+      }
+
+      // 最良結果を選択
+      const parsed = pickBestOCRResult(ocrResults);
+      progressBar.style.width = '92%';
+
       // 画像ピクセル分析で棒グラフの選択日を検出
       const barResult = await detectSelectedBarDay(file);
 
@@ -856,6 +1090,7 @@
         (document.getElementById('ocr-deliveries') as HTMLInputElement).value = String(parsed.deliveries || '');
         (document.getElementById('ocr-base-fare') as HTMLInputElement).value = String(parsed.baseFare || '');
         (document.getElementById('ocr-promotion') as HTMLInputElement).value = String(parsed.promotion || '');
+        (document.getElementById('ocr-tip') as HTMLInputElement).value = String(parsed.tip || '');
         // 曜日をセット（棒グラフ検出 > OCRテキスト検出 > 今日の曜日）
         const detectedDow = parsed.dayOfWeek || ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
         (document.getElementById('ocr-dow') as HTMLInputElement).value = detectedDow;
@@ -910,29 +1145,43 @@
           const ctx = canvas.getContext('2d')!;
           ctx.drawImage(img, 0, 0);
 
+          // ===== STEP 0: ダーク/ライトモード検出 =====
+          const sampleData = ctx.getImageData(0, 0, W, Math.floor(H * 0.1)).data;
+          let totalBrightnessSample = 0;
+          const samplePixels = sampleData.length / 4;
+          for (let i = 0; i < sampleData.length; i += 16) { // サンプリング
+            totalBrightnessSample += (sampleData[i] + sampleData[i+1] + sampleData[i+2]) / 3;
+          }
+          const avgBright = totalBrightnessSample / (samplePixels / 4);
+          const isDark = avgBright < 100;
+          console.log('[BAR] mode:', isDark ? 'DARK' : 'LIGHT', 'avg:', avgBright.toFixed(1));
+
           // ===== STEP 1: 青系ピクセルが集中する Y 帯を動的に検出 =====
-          // 画像上半分 (0% 〜 40%) をスキャンして、青ピクセルの Y 分布を調べる
           const scanTop = 0;
-          const scanBottom = Math.floor(H * 0.40);
+          const scanBottom = Math.floor(H * 0.45); // 少し広めにスキャン
           const fullData = ctx.getImageData(0, scanTop, W, scanBottom).data;
 
-          // Y ごとに青ピクセル数をカウント
           const blueByRow: number[] = new Array(scanBottom).fill(0);
           for (let y = 0; y < scanBottom; y++) {
             for (let x = 0; x < W; x++) {
               const idx = (y * W + x) * 4;
               const r = fullData[idx], g = fullData[idx + 1], b = fullData[idx + 2];
-              // 青系（棒グラフ）: b>80, b>r, 背景黒や白テキストを除外
               const sum = r + g + b;
-              if (b > 80 && b > r && sum > 120 && sum < 650) {
-                blueByRow[y]++;
+              // 青系ピクセル検出（ダーク/ライト両対応）
+              if (isDark) {
+                // ダークモード: 背景が黒なので低い閾値
+                if (b > 60 && b > r * 1.1 && sum > 80 && sum < 600) blueByRow[y]++;
+              } else {
+                // ライトモード: 背景が白なので高めの閾値
+                // 選択バー: 鮮やかな青 (例: rgb(60,120,220))
+                // 非選択バー: 薄い青/グレー (例: rgb(190,200,220))
+                if (b > 80 && b > r && sum > 120 && sum < 650) blueByRow[y]++;
               }
             }
           }
 
-          // 青ピクセルが多い行の範囲を見つける（棒グラフの Y 帯）
           const maxRow = Math.max(...blueByRow);
-          const threshold = maxRow * 0.15; // 最大の 15% 以上ある行を棒グラフ領域とみなす
+          const threshold = maxRow * 0.12;
           let barYStart = -1, barYEnd = -1;
           for (let y = 0; y < scanBottom; y++) {
             if (blueByRow[y] > threshold) {
@@ -956,13 +1205,15 @@
           const barData = ctx.getImageData(xMargin, barYStart, regionW, regionH).data;
           const colWidth = Math.floor(regionW / 7);
 
-          // 各列の「明るい青」と「暗い青」ピクセル数
           const brightCounts: number[] = [];
           const darkCounts: number[] = [];
           const anyBlueCounts: number[] = [];
+          // 各列の平均明度（より正確な判定のため）
+          const avgLuminance: number[] = [];
 
           for (let col = 0; col < 7; col++) {
             let bright = 0, dark = 0, anyBlue = 0;
+            let lumSum = 0, lumCount = 0;
             const cxStart = col * colWidth;
             const cxEnd = cxStart + colWidth;
 
@@ -972,21 +1223,37 @@
                 const r = barData[idx], g = barData[idx + 1], b = barData[idx + 2];
                 const sum = r + g + b;
 
-                // 背景黒(sum<80) やテキスト白(sum>650) を除外
-                if (sum < 80 || sum > 650) continue;
-
-                // 青系のピクセル
-                if (b > 80 && b > r) {
-                  anyBlue++;
-                  // 明るい青 vs 暗い青を判定
-                  // 明るい青（選択中）: 青成分が高く、全体的に明るめ
-                  //   例: rgb(130,160,220) 〜 rgb(170,190,245)
-                  // 暗い青（非選択）: 全体的に暗い
-                  //   例: rgb(60,65,85) 〜 rgb(90,100,130)
-                  if (b > 140 && sum > 300) {
-                    bright++;
-                  } else if (sum < 300) {
-                    dark++;
+                if (isDark) {
+                  // ダークモード
+                  if (sum < 40 || sum > 700) continue; // 背景黒・テキスト白除外
+                  if (b > 60 && b > r * 1.05) {
+                    anyBlue++;
+                    lumSum += sum; lumCount++;
+                    // 明るい青: 選択中の日
+                    // ダーク選択: rgb(70-100, 120-170, 200-255) → sum≈400-520
+                    // ダーク非選択: rgb(50-70, 55-75, 75-100) → sum≈180-240
+                    if (b > 120 && sum > 280) {
+                      bright++;
+                    } else if (sum < 280) {
+                      dark++;
+                    }
+                  }
+                } else {
+                  // ライトモード
+                  if (sum < 100 || sum > 720) continue;
+                  // 選択バー: 鮮やかな青 (rgb(50-80, 100-150, 200-255))
+                  // 非選択バー: 淡い青/グレー (rgb(180-210, 190-220, 210-240))
+                  const blueDominance = b - Math.max(r, g);
+                  if (blueDominance > 10 || (b > 150 && b > r)) {
+                    anyBlue++;
+                    lumSum += sum; lumCount++;
+                    // 鮮やかな青 (blue dominance が強い) = 選択中
+                    if (blueDominance > 50 && b > 160) {
+                      bright++;
+                    } else if (blueDominance < 30 || sum > 550) {
+                      // 淡い色 = 非選択
+                      dark++;
+                    }
                   }
                 }
               }
@@ -994,59 +1261,92 @@
             brightCounts.push(bright);
             darkCounts.push(dark);
             anyBlueCounts.push(anyBlue);
+            avgLuminance.push(lumCount > 0 ? lumSum / lumCount : 0);
           }
 
           console.log('[BAR] bright:', brightCounts);
           console.log('[BAR] dark:', darkCounts);
           console.log('[BAR] anyBlue:', anyBlueCounts);
+          console.log('[BAR] avgLum:', avgLuminance.map(v => v.toFixed(0)));
 
           // ===== STEP 3: 週間表示 vs 日別表示を判定 =====
           const totalBright = brightCounts.reduce((a, b) => a + b, 0);
           const totalDark = darkCounts.reduce((a, b) => a + b, 0);
 
-          // 棒があるカラム（ある程度の青ピクセルがある列）を特定
           const minForBar = Math.max(...anyBlueCounts) * 0.05;
           const barsWithData = anyBlueCounts.filter(c => c > minForBar).length;
 
-          // 明るい青ピクセルがある列の数をカウント
-          const brightThreshold = totalBright > 0 ? Math.max(...brightCounts) * 0.3 : 0;
-          const brightCols = brightCounts.filter(c => c > brightThreshold).length;
+          const brightThreshold2 = totalBright > 0 ? Math.max(...brightCounts) * 0.25 : 0;
+          const brightCols = brightCounts.filter(c => c > brightThreshold2).length;
+
+          // 平均明度による追加判定
+          const activeLumCols = avgLuminance.filter(v => v > 0);
+          const maxLum = Math.max(...activeLumCols);
+          const minLum = Math.min(...activeLumCols.filter(v => v > 0));
+          const lumRange = maxLum - minLum;
 
           console.log('[BAR] barsWithData:', barsWithData, 'brightCols:', brightCols,
-            'totalBright:', totalBright, 'totalDark:', totalDark);
+            'totalBright:', totalBright, 'totalDark:', totalDark,
+            'lumRange:', lumRange.toFixed(0));
 
-          // 週間表示判定: 暗い棒がほぼ無く、データのある棒が全て明るい
+          // 週間表示判定
+          // 方法1: 暗い棒がほぼ無く、全棒が明るい
           if (totalDark < totalBright * 0.1 && barsWithData >= 2 && brightCols >= barsWithData) {
             console.log('[BAR] WEEKLY view detected (all bars are bright blue)');
             resolve({ dayOfWeek: '', isWeekly: true });
             return;
           }
-
-          // 明るい棒が複数あって暗い棒が少ない → 週間
+          // 方法2: 明度差が小さい（全棒が同じ色）
+          if (lumRange < 30 && barsWithData >= 3 && brightCols >= 2) {
+            console.log('[BAR] WEEKLY view detected (uniform luminance)');
+            resolve({ dayOfWeek: '', isWeekly: true });
+            return;
+          }
+          // 方法3: 明るい棒が多すぎる
           if (brightCols >= 3 && totalDark < totalBright * 0.3) {
             console.log('[BAR] WEEKLY view detected (multiple bright bars, few dark)');
             resolve({ dayOfWeek: '', isWeekly: true });
             return;
           }
 
-          // ===== STEP 4: 1列だけ明るい → 選択中の曜日を特定 =====
-          const maxBright = Math.max(...brightCounts);
-          if (maxBright < 10) {
-            console.log('[BAR] no bright bars detected');
+          // ===== STEP 4: 選択中の曜日を特定 =====
+          // 複数の指標を組み合わせてスコアリング
+          const colScores: number[] = [];
+          for (let col = 0; col < 7; col++) {
+            let score = 0;
+            // 明るいピクセル数
+            score += brightCounts[col];
+            // 明度ボーナス（高い方がスコア高い）
+            if (avgLuminance[col] > 0 && maxLum > 0) {
+              score += (avgLuminance[col] / maxLum) * 100;
+            }
+            // バーの高さ（anyBlue）ボーナス — 選択中の棒は通常最も高い
+            const maxAnyBlue = Math.max(...anyBlueCounts);
+            if (maxAnyBlue > 0) {
+              score += (anyBlueCounts[col] / maxAnyBlue) * 50;
+            }
+            colScores.push(score);
+          }
+
+          console.log('[BAR] colScores:', colScores.map(v => v.toFixed(0)));
+
+          const maxScore = Math.max(...colScores);
+          if (maxScore < 10) {
+            console.log('[BAR] no significant bars detected');
             resolve({ dayOfWeek: '', isWeekly: false });
             return;
           }
 
-          const selectedCol = brightCounts.indexOf(maxBright);
-          // 2番目との差を確認
-          const sorted = [...brightCounts].sort((a, b) => b - a);
-          if (sorted[1] > 0 && sorted[0] / sorted[1] < 1.5) {
-            console.log('[BAR] ambiguous: top two close', sorted[0], 'vs', sorted[1]);
-            // それでも暗い棒が十分あれば日別表示かもしれない
-            if (totalDark > totalBright * 0.5) {
-              // 暗い棒が多い → 日別表示で2列の棒が近い高さ
-              // 棒の高さ（anyBlue）が最大の列を選ぶ代わりに、明るい列の中で最大を使う
-              console.log('[BAR] treating as daily (dark bars exist)');
+          const selectedCol = colScores.indexOf(maxScore);
+          const sortedScores = [...colScores].sort((a, b) => b - a);
+          const ratio = sortedScores[1] > 0 ? sortedScores[0] / sortedScores[1] : Infinity;
+
+          console.log('[BAR] selected col:', selectedCol, 'ratio:', ratio.toFixed(2));
+
+          if (ratio < 1.2) {
+            console.log('[BAR] ambiguous: top two very close', sortedScores[0].toFixed(0), 'vs', sortedScores[1].toFixed(0));
+            if (totalDark > totalBright * 0.3) {
+              console.log('[BAR] treating as daily (dark bars exist, using highest score)');
             } else {
               resolve({ dayOfWeek: '', isWeekly: false });
               return;
@@ -1061,8 +1361,11 @@
             console.log('[BAR] col:', selectedCol, 'startDow:', dayKeys[startDow], '→', dayKeys[selectedDow]);
             resolve({ dayOfWeek: dayKeys[selectedDow], isWeekly: false });
           } else {
-            console.log('[BAR] no start dow info available');
-            resolve({ dayOfWeek: '', isWeekly: false });
+            // __ocrStartDow が未設定の場合、Uber Eats は通常月曜始まりなので仮定
+            const fallbackStartDow = 1; // 月曜
+            const selectedDow = (fallbackStartDow + selectedCol) % 7;
+            console.log('[BAR] col:', selectedCol, 'startDow (fallback Mon):', '→', dayKeys[selectedDow]);
+            resolve({ dayOfWeek: dayKeys[selectedDow], isWeekly: false });
           }
         } catch (err) {
           console.log('[BAR] pixel analysis error:', err);
@@ -1075,165 +1378,601 @@
   }
 
   function parseUberScreenshot(text: string) {
-    const result = { earnings: 0, hours: 0, hoursInt: 0, minutesInt: 0, deliveries: 0, baseFare: 0, promotion: 0, dayOfWeek: '' as string };
+    const result = { earnings: 0, hours: 0, hoursInt: 0, minutesInt: 0, deliveries: 0, baseFare: 0, promotion: 0, tip: 0, dayOfWeek: '' as string };
 
     // デバッグ: OCR生テキスト出力
     console.log('[OCR] raw text:', text);
 
-    // 前処理: 全角数字→半角、全角カンマ→半角、余分なスペース圧縮
-    const t = text
+    // === 前処理: OCRノイズ除去 ===
+    let t = text
+      // 全角数字→半角
       .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30))
+      // 全角カンマ・ピリオド→半角
       .replace(/[，]/g, ',')
+      .replace(/[．]/g, '.')
+      // 全角¥→半角
+      .replace(/[￥]/g, '¥')
+      // OCR誤認識の修正: 「¥」の代わりに出る文字
+      .replace(/[\\Y]\s*(?=\d)/g, '¥')
+      // 余分なスペース圧縮
       .replace(/[ \t]+/g, ' ');
 
     // 行ごとに分割して解析（OCRは行単位で出力するため）
     const lines = t.split(/\n/).map(l => l.trim()).filter(Boolean);
     console.log('[OCR] lines:', lines);
 
-    // ヘルパー: 行から金額を抽出
-    function extractAmount(line: string): number {
-      const m = line.match(/[¥￥\\Y]\s?([\d,]+)/);
-      if (m) return parseInt(m[1].replace(/,/g, ''));
-      // ¥記号なしの金額（行末の数字のみ）
-      const m2 = line.match(/([\d,]{2,})$/);
-      if (m2) return parseInt(m2[1].replace(/,/g, ''));
+    // === ヘルパー関数群 ===
+
+    // 数字間のスペースや誤認識を除去して数値を抽出
+    // OCRでは「33,445」が「33, 445」「33 445」「33.445」「33、445」等になりがち
+    function cleanNumber(s: string): number {
+      // まずカンマ区切り数字を正規化
+      let cleaned = s
+        .replace(/\s+/g, '')       // スペース除去
+        .replace(/[、。．]/g, '')   // 日本語句読点除去
+        .replace(/[oOоО]/g, '0')   // o→0 の誤認識修正
+        .replace(/[lIiｌＩ|]/g, '1') // l/I→1 の誤認識修正
+        .replace(/[sS]/g, '5')     // S→5 の誤認識修正（文脈による）
+        .replace(/,/g, '');        // カンマ除去
+      const m = cleaned.match(/(\d+)/);
+      return m ? parseInt(m[1]) : 0;
+    }
+
+    // より柔軟な金額抽出（スペース入り数字対応）
+    function extractAmountFlex(s: string): number {
+      // パターン1: ¥マーク付き金額（スペース許容）
+      const m1 = s.match(/[¥￥]\s*([\d\s,\.]+)/);
+      if (m1) return cleanNumber(m1[1]);
+      // パターン2: 数字のみ（3桁以上）
+      const m2 = s.match(/([\d,\s]{3,})/);
+      if (m2) return cleanNumber(m2[1]);
       return 0;
     }
 
     // まず全テキストを1つにまとめてパターンマッチ（1行で来る場合の対策）
     const flat = lines.join(' ');
 
-    // 正味の料金（ラベルの直後の金額を取る）
-    for (const pat of [/正味.{0,3}料金\s*[¥￥\\Y]\s?([\d,]+)/, /正味.{0,3}料金\s+([\d,]{2,})/]) {
-      const m = flat.match(pat);
-      if (m) { result.baseFare = parseInt(m[1].replace(/,/g, '')); console.log('[OCR] baseFare:', result.baseFare); break; }
+    // ============================================
+    // === ★ 明細セクション専用パーサー（最優先） ===
+    // ============================================
+    // Uber Eatsの明細セクションは「明細」見出しの後に
+    //   正味の料金  ¥XX,XXX
+    //   プロモーション  ¥X,XXX
+    //   チップ  ¥XXX
+    // の形式で表示される。OCRではラベルと金額が同じ行に来ることも
+    // 別の行に分かれることもあるため、両方に対応する。
+    {
+      let meisaiStart = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (/^明\s*細/.test(lines[i])) {
+          meisaiStart = i + 1;
+          console.log('[OCR] 明細 section found at line', i);
+          break;
+        }
+      }
+      if (meisaiStart >= 0) {
+        // 明細セクション内の行を走査
+        for (let i = meisaiStart; i < lines.length && i < meisaiStart + 20; i++) {
+          const line = lines[i];
+          // 「統計」「統計算出方法」が来たら明細セクション終了
+          if (/^統\s*計/.test(line)) break;
+
+          // 正味の料金
+          if (!result.baseFare && /(?:正\s*味|正\s*[林体]|IE\s*味|net)/i.test(line)) {
+            let val = extractAmountFlex(line);
+            // 金額が同行にない → 次行をチェック
+            if (!val && i + 1 < lines.length) {
+              val = extractAmountFlex(lines[i + 1]);
+              if (val >= 50) i++; // 次行を消費
+            }
+            if (val >= 50) {
+              result.baseFare = val;
+              console.log('[OCR] baseFare (明細):', val, '←', line);
+            }
+          }
+
+          // プロモーション（OCR変形に広く対応）
+          if (!result.promotion && /(?:プ[ロ口]モ|ブ[ロ口]モ|フ[ロ口]モ|プロ[モ毛]|promotion|フ[°゜]ロモ|70モ|ブロ[モ毛])/i.test(line)) {
+            let val = extractAmountFlex(line);
+            if (!val && i + 1 < lines.length) {
+              val = extractAmountFlex(lines[i + 1]);
+              if (val >= 50) i++;
+            }
+            if (val >= 50) {
+              result.promotion = val;
+              console.log('[OCR] promotion (明細):', val, '←', line);
+            }
+          }
+
+          // チップ
+          if (!result.tip && /(?:チ[ッツ]?[プブ]|tip)/i.test(line)) {
+            let val = extractAmountFlex(line);
+            if (!val && i + 1 < lines.length) {
+              val = extractAmountFlex(lines[i + 1]);
+              if (val >= 1) i++;
+            }
+            if (val >= 1) {
+              result.tip = val;
+              console.log('[OCR] tip (明細):', val, '←', line);
+            }
+          }
+        }
+        console.log('[OCR] after 明細 parse: baseFare=', result.baseFare, 'promotion=', result.promotion, 'tip=', result.tip);
+      }
+
+      // === 明細セクションが見つからない場合の補助: 連続する金額行パターン ===
+      // 「正味の料金」「プロモーション」「チップ」が連続する行パターン
+      // OCRで「明細」見出しが読み取れなくても、ラベル＋金額の連続パターンを検知する
+      if (!result.baseFare || !result.promotion) {
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i];
+          // 正味の料金の行を見つけたら、そこから連続してプロモとチップも探す
+          if (!result.baseFare && /(?:正\s*味|正\s*[林体])/i.test(line)) {
+            const bfVal = extractAmountFlex(line);
+            if (bfVal >= 50) {
+              result.baseFare = bfVal;
+              console.log('[OCR] baseFare (seq):', bfVal, '←', line);
+              // 次の行がプロモかチェック
+              for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+                if (!result.promotion && /(?:プ[ロ口]モ|ブ[ロ口]モ|フ[ロ口]モ|promotion)/i.test(lines[j])) {
+                  const pVal = extractAmountFlex(lines[j]);
+                  if (pVal >= 50) {
+                    result.promotion = pVal;
+                    console.log('[OCR] promotion (seq):', pVal, '←', lines[j]);
+                  }
+                }
+                if (!result.tip && /(?:チ[ッツ]?[プブ]|tip)/i.test(lines[j])) {
+                  const tVal = extractAmountFlex(lines[j]);
+                  if (tVal >= 1) {
+                    result.tip = tVal;
+                    console.log('[OCR] tip (seq):', tVal, '←', lines[j]);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
 
-    // プロモーション（non-greedy + ¥有り/無しの両方に対応）
-    for (const pat of [/(?:プロモ|ブロモ|promotion)\S*\s*[¥￥\\Y]\s?([\d,]+)/i, /(?:プロモ|ブロモ|promotion)\S*\s+([\d,]{2,})/i]) {
+    // === 売り上げ総額 ===
+    // パターンの優先順位: 厳密マッチ → 緩めマッチ → フォールバック
+    const earningsPatterns = [
+      // 「売り上げ総額」の厳密マッチ（各種OCR誤認識対応）
+      /売[り]?\s*[上げ]+\s*総\s*額\s*[¥￥]\s*([\d\s,\.]+)/,
+      /売[り]?\s*[上げ]+\s*総\s*額\s+([\d\s,\.]{3,})/,
+      // 「売上総額」（スペースなし）
+      /売上総額\s*[¥￥]?\s*([\d\s,\.]+)/,
+      // 「売上」「総額」が離れている場合
+      /売[り]?\s*上[げ]?\s*.{0,5}総\s*額\s*[¥￥]?\s*([\d\s,\.]+)/,
+      // 「売上」の後の金額（総額がOCRで消えた場合）
+      /売[り上げ]{1,3}\s*[¥￥]\s*([\d\s,\.]+)/,
+    ];
+    for (const pat of earningsPatterns) {
       const m = flat.match(pat);
-      if (m) { result.promotion = parseInt(m[1].replace(/,/g, '')); console.log('[OCR] promotion:', result.promotion); break; }
+      if (m) {
+        const val = cleanNumber(m[1]);
+        if (val >= 100) { // 最低¥100
+          result.earnings = val;
+          console.log('[OCR] earnings:', result.earnings, '←', pat.source);
+          break;
+        }
+      }
     }
 
-    // 売り上げ総額
-    for (const pat of [/売.{0,3}上.{0,3}総額\s*[¥￥\\Y]\s?([\d,]+)/, /売.{0,3}上.{0,3}総額\s+([\d,]{2,})/]) {
+    // === 正味の料金 ===
+    const baseFarePatterns = [
+      /正\s*味\s*.{0,3}料\s*金\s*[¥￥]\s*([\d\s,\.]+)/,
+      /正\s*味\s*.{0,3}料\s*金\s+([\d\s,\.]{3,})/,
+      // OCRで「正味」が「IE味」「正林」等に化ける場合も考慮
+      /(?:正|IE|止)\s*(?:味|林)\s*.{0,3}(?:料|刺)\s*(?:金|余)\s*[¥￥]?\s*([\d\s,\.]+)/,
+      // 「Net fare」的な英語表記（稀だが）
+      /net\s*(?:fare|pay|fee)\s*[¥￥]?\s*([\d\s,\.]+)/i,
+    ];
+    for (const pat of baseFarePatterns) {
       const m = flat.match(pat);
-      if (m) { result.earnings = parseInt(m[1].replace(/,/g, '')); console.log('[OCR] earnings (total):', result.earnings); break; }
+      if (m) {
+        const val = cleanNumber(m[1]);
+        if (val >= 50) {
+          result.baseFare = val;
+          console.log('[OCR] baseFare:', result.baseFare, '←', pat.source);
+          break;
+        }
+      }
     }
 
-    // 売上が未検出の場合: 全金額から最大値
-    if (!result.earnings) {
-      const amountPat = /[¥￥\\Y]\s?([\d,]+)/g;
-      const allAmounts: number[] = [];
+    // === プロモーション ===
+    const promoPatterns = [
+      /(?:プロモ|ブロモ|プ[ロ口]モ|フ[ロ口]モ|プロ[モ毛]|promotion)\s*(?:ー\s*)?(?:ション\s*)?[¥￥]\s*([\d\s,\.]+)/i,
+      /(?:プロモ|ブロモ|プ[ロ口]モ|フ[ロ口]モ|プロ[モ毛]|promotion)\s*(?:ー\s*)?(?:ション\s*)?\s+([\d\s,\.]{3,})/i,
+      // 「プロモーション」のOCR変形パターン
+      /(?:プ|ブ|フ)[ロ口][モ毛]\s*[ーー\-一]\s*(?:シ|ジ|ン)[ョヨ]ン\s*[¥￥]?\s*([\d\s,\.]+)/,
+      // ダークモードOCRで激しく崩れた場合
+      /[プブフ]\s*[ロ口]\s*[モ毛]\s*[ーー\-一]?\s*[シジン]?\s*[ョヨ]?\s*ン?\s*[¥￥]\s*([\d\s,\.]+)/,
+      // 「プロモ」だけで¥金額がすぐ後に来るケース
+      /[プブフ][ロ口][モ毛]\s*[¥￥]\s*([\d\s,\.]+)/,
+      // 英語 promotion パターン
+      /promotion\s*[¥￥]?\s*([\d\s,\.]+)/i,
+    ];
+    for (const pat of promoPatterns) {
+      const m = flat.match(pat);
+      if (m) {
+        const val = cleanNumber(m[1]);
+        if (val >= 50) {
+          result.promotion = val;
+          console.log('[OCR] promotion:', result.promotion, '←', pat.source);
+          break;
+        }
+      }
+    }
+
+    // プロモが未検出の場合: 行単位で「プロモ」を含む行から金額取得
+    if (!result.promotion) {
+      for (const line of lines) {
+        if (/(?:プロモ|ブロモ|フロモ|promotion)/i.test(line)) {
+          const val = extractAmountFlex(line);
+          if (val >= 50) {
+            result.promotion = val;
+            console.log('[OCR] promotion (line):', result.promotion, '←', line);
+            break;
+          }
+          // 次の行に金額がある場合もチェック
+          const idx = lines.indexOf(line);
+          if (idx + 1 < lines.length) {
+            const nextVal = extractAmountFlex(lines[idx + 1]);
+            if (nextVal >= 50 && !lines[idx + 1].match(/(?:正味|売上|乗車|配達|オンライン|時間)/)) {
+              result.promotion = nextVal;
+              console.log('[OCR] promotion (next line):', result.promotion, '←', lines[idx + 1]);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 正味が未検出の場合: 行単位で探す
+    if (!result.baseFare) {
+      for (const line of lines) {
+        if (/(?:正味|正林)/.test(line)) {
+          const val = extractAmountFlex(line);
+          if (val >= 50) {
+            result.baseFare = val;
+            console.log('[OCR] baseFare (line):', result.baseFare, '←', line);
+            break;
+          }
+          const idx = lines.indexOf(line);
+          if (idx + 1 < lines.length) {
+            const nextVal = extractAmountFlex(lines[idx + 1]);
+            if (nextVal >= 50 && !lines[idx + 1].match(/(?:プロモ|売上|乗車|配達|オンライン|時間)/)) {
+              result.baseFare = nextVal;
+              console.log('[OCR] baseFare (next line):', result.baseFare, '←', lines[idx + 1]);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // === チップ ===
+    const tipPatterns = [
+      /(?:チップ|チ[ッツ]プ|チフ[゜°]|tip)\s*[¥￥]\s*([\d\s,\.]+)/i,
+      /(?:チップ|チ[ッツ]プ|チフ[゜°]|tip)\s+([\d\s,\.]{2,})/i,
+      // OCR変形パターン
+      /(?:チ|千)[ッツ]?\s*[プブ]\s*[¥￥]?\s*([\d\s,\.]+)/,
+    ];
+    for (const pat of tipPatterns) {
+      const m = flat.match(pat);
+      if (m) {
+        const val = cleanNumber(m[1]);
+        if (val >= 1) { // チップは¥1以上
+          result.tip = val;
+          console.log('[OCR] tip:', result.tip, '←', pat.source);
+          break;
+        }
+      }
+    }
+    // 行単位でチップを探す
+    if (!result.tip) {
+      for (const line of lines) {
+        if (/(?:チップ|チ[ッツ]プ|tip)/i.test(line)) {
+          const val = extractAmountFlex(line);
+          if (val >= 1) {
+            result.tip = val;
+            console.log('[OCR] tip (line):', result.tip, '←', line);
+            break;
+          }
+          // 次行にチップ金額がある場合
+          const idx = lines.indexOf(line);
+          if (idx + 1 < lines.length) {
+            const nextVal = extractAmountFlex(lines[idx + 1]);
+            if (nextVal >= 1 && nextVal < 10000 && !lines[idx + 1].match(/(?:正味|売上|プロモ|乗車|配達|オンライン|時間)/)) {
+              result.tip = nextVal;
+              console.log('[OCR] tip (next line):', result.tip, '←', lines[idx + 1]);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // === 売上が未検出の場合: 全¥金額を収集して賢く選択 ===
+    const allAmounts: number[] = [];
+    {
+      const amountPat = /[¥￥]\s*([\d\s,\.]+)/g;
       let am;
-      while ((am = amountPat.exec(flat)) !== null) allAmounts.push(parseInt(am[1].replace(/,/g, '')));
+      while ((am = amountPat.exec(flat)) !== null) {
+        const val = cleanNumber(am[1]);
+        if (val >= 100) allAmounts.push(val);
+      }
       // ¥記号なしの行末金額も拾う
       for (const line of lines) {
         const m2 = line.match(/([\d,]{4,})$/);
-        if (m2) allAmounts.push(parseInt(m2[1].replace(/,/g, '')));
-      }
-      if (allAmounts.length > 0) {
-        allAmounts.sort((a, b) => b - a);
-        result.earnings = allAmounts[0];
-        console.log('[OCR] earnings (max fallback):', result.earnings);
-      }
-    }
-
-    // 各行を解析（時間・件数）
-    for (const line of lines) {
-      // オンライン時間
-      if (!result.hours) {
-        for (const pat of [/(\d+)\s*[時hH]\s*[間]?\s*(\d+)\s*[分mM]/, /(\d+)\s*時間\s*(\d+)\s*分/]) {
-          const m = line.match(pat);
-          if (m) {
-            result.hoursInt = parseInt(m[1]);
-            result.minutesInt = parseInt(m[2]);
-            result.hours = result.hoursInt + result.minutesInt / 60;
-            console.log('[OCR] time:', result.hoursInt, 'h', result.minutesInt, 'm', '<-', line);
-            break;
-          }
+        if (m2) {
+          const val = cleanNumber(m2[1]);
+          if (val >= 100 && !allAmounts.includes(val)) allAmounts.push(val);
         }
       }
-
-      // 乗車/配達件数
-      if (!result.deliveries) {
-        for (const pat of [/乗車\s*(\d+)(?!\s*[時hH])/, /(?:配達|rides?)\s+(\d+)/, /(\d+)\s*(?:件|回)/]) {
-          const m = line.match(pat);
-          if (m) {
-            result.deliveries = parseInt(m[1]);
-            console.log('[OCR] deliveries:', result.deliveries, '<-', line);
-            break;
-          }
-        }
-      }
+      console.log('[OCR] all detected amounts:', allAmounts);
     }
 
-    // 乗車件数がまだ未検出: 全テキストからも探す（時間の数字を誤検出しないよう負の先読み）
-    if (!result.deliveries) {
-      for (const pat of [/乗車\s*(\d+)(?!\s*[時hH])/, /(?:配達|rides?)\s+(\d+)/, /(\d+)\s*(?:件|回)/]) {
-        const m = flat.match(pat);
-        if (m) { result.deliveries = parseInt(m[1]); console.log('[OCR] deliveries (flat):', result.deliveries); break; }
-      }
-    }
-
-    // OCRで「乗車」と数字が別の行に来るケース
-    if (!result.deliveries) {
-      for (let i = 0; i < lines.length; i++) {
-        if (/乗車/.test(lines[i])) {
-          // 同行に数字あるか（時間以外）
-          const m = lines[i].match(/(\d+)/);
-          if (m && !/時/.test(lines[i])) { result.deliveries = parseInt(m[1]); break; }
-          // 次行をチェック: 時間パターンの後ろに残る数字、または数字だけの行
-          if (i + 1 < lines.length) {
-            const nextLine = lines[i+1].trim();
-            if (/^\d+$/.test(nextLine)) {
-              result.deliveries = parseInt(nextLine);
-              console.log('[OCR] deliveries (next line pure number):', result.deliveries);
-              break;
-            }
-            // 「4 時間 24 分 12」のように時間+件数が混在する行
-            const afterTime = nextLine.replace(/\d+\s*[時hH]\s*[間]?\s*\d+\s*[分mM]?/, '').trim();
-            if (afterTime && /^\d+$/.test(afterTime)) {
-              result.deliveries = parseInt(afterTime);
-              console.log('[OCR] deliveries (after time):', result.deliveries);
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // 売上が未検出の場合: 全金額から最大値
     if (!result.earnings && allAmounts.length > 0) {
-      allAmounts.sort((a, b) => b - a);
-      result.earnings = allAmounts[0];
-      console.log('[OCR] earnings (max fallback):', result.earnings);
+      // 賢い売上選択:
+      // 正味+プロモ+チップの合計に一致する金額があればそれを優先する
+      const componentSum = (result.baseFare || 0) + (result.promotion || 0) + (result.tip || 0);
+      if (componentSum > 0) {
+        // STEP 1: 完全一致を探す
+        if (allAmounts.includes(componentSum)) {
+          result.earnings = componentSum;
+          console.log('[OCR] earnings (exact component match):', result.earnings);
+        }
+        // STEP 2: 5%以内の近似一致
+        if (!result.earnings) {
+          let bestMatch = 0, bestDiff = Infinity;
+          for (const amt of allAmounts) {
+            const diff = Math.abs(amt - componentSum);
+            if (diff < bestDiff && diff / componentSum < 0.05) {
+              bestMatch = amt;
+              bestDiff = diff;
+            }
+          }
+          if (bestMatch > 0) {
+            result.earnings = bestMatch;
+            console.log('[OCR] earnings (component match):', result.earnings, '(sum=' + componentSum + ')');
+          }
+        }
+      }
+
+      // まだ未検出なら、ラベルなし金額から選択
+      // ただし「正味」「プロモ」「チップ」で既に使われた金額は除外
+      if (!result.earnings) {
+        const usedAmounts = [result.baseFare, result.promotion, result.tip].filter(v => v > 0);
+        const candidates = allAmounts.filter(a => !usedAmounts.includes(a));
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => b - a);
+          // 正味+プロモの合計より大きい金額を優先（売上総額は内訳の合計以上のはず）
+          const minExpected = (result.baseFare || 0) + (result.promotion || 0);
+          const larger = candidates.filter(a => a >= minExpected * 0.9);
+          if (larger.length > 0) {
+            // 内訳合計に最も近い値を選ぶ（週間合計ではなく日別合計を選びたい）
+            if (componentSum > 0) {
+              larger.sort((a, b) => Math.abs(a - componentSum) - Math.abs(b - componentSum));
+              result.earnings = larger[0];
+            } else {
+              result.earnings = larger[larger.length - 1]; // 最小の候補（日別合計の方が小さい）
+            }
+          } else {
+            result.earnings = candidates[0]; // 最大値フォールバック
+          }
+          console.log('[OCR] earnings (smart fallback):', result.earnings, 'from', candidates);
+        } else {
+          // 全部使用済みなら最大値
+          allAmounts.sort((a, b) => b - a);
+          result.earnings = allAmounts[0];
+          console.log('[OCR] earnings (max fallback):', result.earnings);
+        }
+      }
     }
 
-    // 正味+プロモ=売上 の整合性チェック → 片方が欠けていたら計算で補完
+    // === オンライン時間 ===
+    // 時間パターンを強化（OCR誤認識「時」→「日寺」等、スペース入り対応）
+    const timePatterns = [
+      /(\d+)\s*[時]\s*[間]?\s*(\d+)\s*[分]/,
+      /(\d+)\s*[hH]\s*(\d+)\s*[mM]/,
+      /(\d+)\s*時\s*間\s*(\d+)\s*分/,
+      // OCRで「時」が分断される場合
+      /(\d+)\s*(?:日寺|日時|時|暗)\s*(?:間)?\s*(\d+)\s*(?:分|か)/,
+      // 「7:18」のようなコロン形式
+      /(?:オンライン|online)\s*(?:時間)?\s*(\d+)\s*[:：]\s*(\d+)/i,
+      // 「7h 18m」形式
+      /(\d+)\s*h\s*(\d+)\s*m/i,
+    ];
+    for (const line of lines) {
+      if (result.hours) break;
+      for (const pat of timePatterns) {
+        const m = line.match(pat);
+        if (m) {
+          const h = parseInt(m[1]);
+          const min = parseInt(m[2]);
+          if (h >= 0 && h <= 24 && min >= 0 && min <= 59) {
+            result.hoursInt = h;
+            result.minutesInt = min;
+            result.hours = h + min / 60;
+            console.log('[OCR] time:', h, 'h', min, 'm', '←', line);
+            break;
+          }
+        }
+      }
+    }
+
+    // flat全体からも時間を探す
+    if (!result.hours) {
+      for (const pat of timePatterns) {
+        const m = flat.match(pat);
+        if (m) {
+          const h = parseInt(m[1]);
+          const min = parseInt(m[2]);
+          if (h >= 0 && h <= 24 && min >= 0 && min <= 59) {
+            result.hoursInt = h;
+            result.minutesInt = min;
+            result.hours = h + min / 60;
+            console.log('[OCR] time (flat):', h, 'h', min, 'm');
+            break;
+          }
+        }
+      }
+    }
+
+    // === 配達件数 ===
+    // 注意: 棒グラフのラベル「30 月 31 火 1 水 2 木 3 金 4 土 5 日」が
+    // OCRに含まれるため、曜日ラベル付近の数字を誤検出しないよう注意。
+    // 「乗車」ラベルの近くにある数字のみを取る。
+
+    // まず「乗車」ラベルとその値を探す（Uber Eatsレイアウト: 「乗車」の直後 or 隣に件数）
+    const deliveryCandidates: number[] = [];
+
+    // 方法1: 行単位で「乗車」ラベルのある行から数字を取る
+    for (let i = 0; i < lines.length; i++) {
+      if (!/(?:乗\s*車|来車|采車)/.test(lines[i])) continue;
+      // この行に曜日ラベル（月火水木金土日）が含まれてたら棒グラフ行なのでスキップ
+      if (/[月火水木金土日]\s*$/.test(lines[i]) || /^\d+\s*[月火水木金土日]/.test(lines[i])) continue;
+
+      // 同行に「乗車 38」のパターン
+      const m1 = lines[i].match(/(?:乗\s*車|来車|采車)\s*(\d+)/);
+      if (m1) {
+        const val = parseInt(m1[1]);
+        // 時間パターンの一部でないことを確認
+        if (val >= 1 && val <= 200 && !/時/.test(lines[i].substring(lines[i].indexOf(m1[1])))) {
+          deliveryCandidates.push(val);
+          console.log('[OCR] delivery candidate (same line):', val, '←', lines[i]);
+        }
+      }
+
+      // 次行をチェック（乗車ラベルと数字が別行にOCRされるケース）
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1].trim();
+
+        // 数字のみの行
+        if (/^\d+$/.test(nextLine)) {
+          const val = parseInt(nextLine);
+          if (val >= 1 && val <= 200) {
+            deliveryCandidates.push(val);
+            console.log('[OCR] delivery candidate (next line number):', val);
+          }
+        }
+
+        // 「12 時間 30 分 38」のように時間+件数が混在する行
+        const afterTime = nextLine.replace(/\d+\s*[時hH]\s*[間]?\s*\d+\s*[分mM]?/, '').trim();
+        if (afterTime && /^\d+$/.test(afterTime)) {
+          const val = parseInt(afterTime);
+          if (val >= 1 && val <= 200) {
+            deliveryCandidates.push(val);
+            console.log('[OCR] delivery candidate (after time):', val);
+          }
+        }
+      }
+    }
+
+    // 方法2: 「ポイント」の近くの数字（Uber Eatsではポイント=配達件数の場合が多い）
+    for (let i = 0; i < lines.length; i++) {
+      if (!/ポイント/.test(lines[i])) continue;
+      const m = lines[i].match(/(\d+)/);
+      if (m) {
+        const val = parseInt(m[1]);
+        if (val >= 1 && val <= 200) {
+          deliveryCandidates.push(val);
+          console.log('[OCR] delivery candidate (ポイント):', val, '←', lines[i]);
+        }
+      }
+      // 次行が数字のみ
+      if (i + 1 < lines.length && /^\d+$/.test(lines[i + 1].trim())) {
+        const val = parseInt(lines[i + 1].trim());
+        if (val >= 1 && val <= 200) {
+          deliveryCandidates.push(val);
+          console.log('[OCR] delivery candidate (after ポイント):', val);
+        }
+      }
+    }
+
+    // 方法3: flat全体から乗車パターン（ただし曜日ラベルの数字を除外）
+    if (deliveryCandidates.length === 0) {
+      // 「乗車」直後の数字で、曜日漢字が後続しないもの
+      const flatDelivery = flat.match(/(?:乗\s*車|来車|采車)\s*(\d+)(?!\s*[月火水木金土日時hH])/);
+      if (flatDelivery) {
+        const val = parseInt(flatDelivery[1]);
+        if (val >= 1 && val <= 200) {
+          deliveryCandidates.push(val);
+          console.log('[OCR] delivery candidate (flat):', val);
+        }
+      }
+    }
+
+    // 候補から最も信頼できる値を選ぶ
+    if (deliveryCandidates.length > 0) {
+      // 複数候補がある場合: 同じ値が複数回出現していたらそれを優先
+      const freq = new Map<number, number>();
+      for (const v of deliveryCandidates) freq.set(v, (freq.get(v) || 0) + 1);
+      const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+      result.deliveries = sorted[0][0];
+      console.log('[OCR] deliveries final:', result.deliveries, '(freq:', sorted, ')');
+    }
+
+    // === 正味+プロモ+チップ=売上 の整合性チェック ===
+    const tipVal = result.tip || 0;
+
+    // STEP A: 売上が未検出だが内訳がある場合 → 合計で補完
+    if (!result.earnings && result.baseFare > 0 && result.promotion > 0) {
+      result.earnings = result.baseFare + result.promotion + tipVal;
+      console.log('[OCR] earnings (calculated from components):', result.earnings);
+    }
+
+    // STEP B: 正味+プロモ+チップ=売上 の検証
+    if (result.earnings > 0 && result.baseFare > 0 && result.promotion > 0) {
+      const sum = result.baseFare + result.promotion + tipVal;
+      const diff = Math.abs(sum - result.earnings);
+      if (diff === 0) {
+        console.log('[OCR] integrity check: PERFECT (sum matches earnings)');
+      } else if (diff / result.earnings < 0.02) {
+        // 2%以内の誤差 → 合計に合わせる
+        console.log('[OCR] integrity check: minor diff', diff, '→ adjusting earnings to', sum);
+        result.earnings = sum;
+      } else {
+        // 大きなズレ → 内訳合計の方が信頼できる（売上がmaxフォールバックで間違ってる可能性）
+        console.log('[OCR] integrity MISMATCH:', result.baseFare, '+', result.promotion, '+', tipVal, '=', sum, '≠', result.earnings);
+        // 内訳がOCRラベル付きで検出された場合は内訳を信頼する
+        if (sum > 0 && sum < result.earnings) {
+          // 売上 > 内訳合計 → 売上が週間合計を拾った可能性が高い → 内訳合計を売上にする
+          console.log('[OCR] earnings overridden by component sum:', sum, '(was:', result.earnings, ')');
+          result.earnings = sum;
+        }
+      }
+    }
+
+    // STEP C: 欠損フィールドの補完（売上と整合性が取れる場合のみ）
     if (result.earnings > 0 && result.baseFare > 0 && !result.promotion) {
-      result.promotion = result.earnings - result.baseFare;
-      if (result.promotion < 0) result.promotion = 0;
+      const calc = result.earnings - result.baseFare - tipVal;
+      // 計算値が妥当な範囲の場合のみ補完
+      if (calc > 0 && calc < result.earnings) {
+        result.promotion = calc;
+        console.log('[OCR] promotion (calculated):', result.promotion);
+      }
     }
     if (result.earnings > 0 && result.promotion > 0 && !result.baseFare) {
-      result.baseFare = result.earnings - result.promotion;
-      if (result.baseFare < 0) result.baseFare = 0;
+      const calc = result.earnings - result.promotion - tipVal;
+      if (calc > 0 && calc < result.earnings) {
+        result.baseFare = calc;
+        console.log('[OCR] baseFare (calculated):', result.baseFare);
+      }
     }
 
-    // 日付検出 → 曜日を自動判定
-    // Uber Eats画面のヘッダーに「3月30日 - 4月6日」（週範囲）or 単独の日付が表示される
-    // 棒グラフの下に「30 月 31 火 1 水 ...」と全曜日が並ぶため、
-    // OCRだけでは「どの日が選択中か」判別不可 → 手動セレクターで補完
+    // === 日付検出 → 曜日を自動判定 ===
     const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const now = new Date();
     const currentYear = now.getFullYear();
 
     // パターン1: 「○月○日」形式（ただし範囲「○月○日 - ○月○日」はスキップ）
-    // 範囲でない単独の日付のみマッチ
     const dateRangePat = /(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*[-\-〜~]/;
     const rangeMatch = flat.match(dateRangePat);
     const isRange = !!rangeMatch;
-    // 範囲の場合: 開始日の曜日を保存（棒グラフ分析用）
     if (isRange && rangeMatch) {
       const rMo = parseInt(rangeMatch[1]), rDa = parseInt(rangeMatch[2]);
       if (rMo >= 1 && rMo <= 12 && rDa >= 1 && rDa <= 31) {
@@ -1255,7 +1994,7 @@
         }
       }
     }
-    // パターン2: 「○/○」形式（年なし、範囲でない場合のみ）
+    // パターン2: 「○/○」形式
     if (!result.dayOfWeek) {
       const slashRange = /(\d{1,2})\/(\d{1,2})\s*[-\-〜~]/;
       if (!slashRange.test(flat)) {
@@ -1271,11 +2010,9 @@
         }
       }
     }
-    // パターン3: 曜日テキスト直接検出（「月曜日」「(火)」など）
-    // 注: 棒グラフの「30 月 31 火 ...」ラベルは複数あるのでスキップ
+    // パターン3: 曜日テキスト直接検出
     if (!result.dayOfWeek) {
       const dowMap: Record<string, string> = { '日': 'sun', '月': 'mon', '火': 'tue', '水': 'wed', '木': 'thu', '金': 'fri', '土': 'sat' };
-      // 「月曜日」「(火)」のような明確な曜日表現のみマッチ
       const dowPat = flat.match(/([日月火水木金土])\s*曜/);
       if (dowPat && dowMap[dowPat[1]]) {
         result.dayOfWeek = dowMap[dowPat[1]];
@@ -1316,18 +2053,21 @@
 
   function updateOCRHourly() {
     const earnings = parseFloat((document.getElementById('ocr-earnings') as HTMLInputElement).value) || 0;
+    const tip = parseFloat((document.getElementById('ocr-tip') as HTMLInputElement).value) || 0;
     const hours = parseFloat((document.getElementById('ocr-hours') as HTMLInputElement).value) || 0;
     const minutes = parseFloat((document.getElementById('ocr-minutes') as HTMLInputElement).value) || 0;
     const totalHours = hours + minutes / 60;
     const hourlyEl = document.getElementById('ocr-hourly') as HTMLInputElement;
-    if (totalHours > 0 && earnings > 0) {
-      hourlyEl.value = `¥${Math.round(earnings / totalHours).toLocaleString()}`;
+    // 時給はチップを除外して計算
+    const earningsWithoutTip = earnings - tip;
+    if (totalHours > 0 && earningsWithoutTip > 0) {
+      hourlyEl.value = `¥${Math.round(earningsWithoutTip / totalHours).toLocaleString()}`;
     } else {
       hourlyEl.value = '-';
     }
   }
 
-  ['ocr-earnings', 'ocr-hours', 'ocr-minutes'].forEach(id => {
+  ['ocr-earnings', 'ocr-hours', 'ocr-minutes', 'ocr-tip'].forEach(id => {
     document.getElementById(id)!.addEventListener('input', () => {
       updateOCRHourly();
       ocrDataReady = true;
@@ -1377,6 +2117,7 @@
     const deliveries = parseInt((document.getElementById('ocr-deliveries') as HTMLInputElement).value) || 0;
     const baseFare = parseInt((document.getElementById('ocr-base-fare') as HTMLInputElement).value) || 0;
     const promotion = parseInt((document.getElementById('ocr-promotion') as HTMLInputElement).value) || 0;
+    const tip = parseInt((document.getElementById('ocr-tip') as HTMLInputElement).value) || 0;
 
     // バリデーション
     if (!pref || cities.length === 0) { errorEl.textContent = '⚠️ 配達エリアを地図から選んでください'; errorEl.classList.remove('hidden'); return; }
@@ -1384,7 +2125,9 @@
     if (hours <= 0) { errorEl.textContent = '⚠️ オンライン時間を入力してください'; errorEl.classList.remove('hidden'); return; }
     if (earnings <= 0) { errorEl.textContent = '⚠️ 売上を入力してください'; errorEl.classList.remove('hidden'); return; }
 
-    const rate = Math.round(earnings / hours);
+    // 時給はチップ除外で計算
+    const earningsForRate = earnings - tip;
+    const rate = Math.round(earningsForRate / hours);
     if (rate > 8000 || rate < 100) {
       errorEl.textContent = '⚠️ 時給が現実的な範囲外です。入力内容を確認してください。';
       errorEl.classList.remove('hidden');
@@ -1404,7 +2147,8 @@
       deliveries: deliveries || null,
       baseFare: baseFare || null,
       promotion: promotion || null,
-      hourlyRate: rate,
+      tip: tip || null,
+      hourlyRate: rate, // チップ除外の時給
       memo: '',
       timestamp: new Date().toISOString(),
       dayOfWeek,
