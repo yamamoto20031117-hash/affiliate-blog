@@ -74,10 +74,21 @@ const colorMap: Record<string, { bg: string; text: string; border: string; btn: 
         <a href={`/posts/${featuredPost.slug}`}
           class="block bg-white rounded-2xl shadow-md hover:shadow-lg transition-shadow overflow-hidden group">
           <div class="sm:flex">
-            <div class="sm:w-2/5 h-48 sm:h-auto bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center flex-shrink-0 text-6xl">
-              {featuredPost.data.category === 'Uber稼ぎ方' ? '🚗' :
-               featuredPost.data.category === 'クレカ修行' ? '💳' :
-               featuredPost.data.category === '扶養・税金' ? '📊' : '📝'}
+            <div class="sm:w-2/5 h-48 sm:h-auto flex-shrink-0 overflow-hidden">
+              {featuredPost.data.heroImage ? (
+                <img
+                  src={featuredPost.data.heroImage}
+                  alt={featuredPost.data.title}
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                />
+              ) : (
+                <div class="w-full h-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-6xl">
+                  {featuredPost.data.category === 'Uber稼ぎ方' ? '🚗' :
+                   featuredPost.data.category === 'クレカ修行' ? '💳' :
+                   featuredPost.data.category === '扶養・税金' ? '📊' : '📝'}
+                </div>
+              )}
             </div>
             <div class="p-6 flex flex-col justify-center">
               {featuredPost.data.category && (
